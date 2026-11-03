@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Michał Laufer — Humanoid Robotics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* ===== KOLORY ===== */
+  :root {
+    --niebieski: #0B1E5B;
+    --tlo: #111111;
+    --fiolet: #3B0A6B;
+    --cyjan: #00E5FF;
+    --tekst: #E6E6EC;
+    --zielony: #CCFF00;          /* Experience: neonowy żółto-zielony */
+    --akcent-fiolet: #A04DFF;    /* Humanoid: ten sam odcień co #3B0A6B, rozjaśniony, żeby był czytelny */
+  }
+
+  /* kolor zakładki: płynnie zmienia się przy przełączaniu */
+  /* kolor akcentu zależny od zakładki (wszystko, co było cyjanowe) */
+  @property --akcent { syntax: "<color>"; inherits: true; initial-value: #A04DFF; }
+  body { --akcent: var(--akcent-fiolet); --cyjan: var(--akcent); }
+  body[data-zakladka="experience"] { --akcent: var(--zielony); }
+  body[data-zakladka="locomotion"] { --akcent: var(--akcent-fiolet); }
+  body[data-zakladka="animation"]  { --akcent: #00E5FF; }
+
+  /* ===== STRONA: gradient + faktura ===== */
+  body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--tekst);
+    font-family: "Inter", system-ui, sans-serif;
+    line-height: 1.6;
+    background: var(--tlo);
+    position: relative;
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  }
+  /* kratka rysowana w <canvas id="kratka"> (JS) – z efektem rybiego oka */
+  :root { --kratka: 24px; }
+  #kratka { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
+  body::after {
+    background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.13) 100%);
+  }
+
+  section { padding: 80px 24px; }
+  .srodek { max-width: 1000px; margin: 0 auto; }
+  h1, h2 { color: var(--cyjan); font-family: "Space Grotesk", sans-serif; font-weight: 700; }
+  h1 { font-size: clamp(1.75rem, 4vw, 3rem); line-height: 1.05; margin: 0 0 16px; }
+
+
+
+  /* ===== "Laufer" przechodzi w szachownicę ===== */
+  .laufer { position: relative; display: inline-block; isolation: isolate; }
+
+  /* ===== POWITANIE wyśrodkowane ===== */
+  .powitanie { text-align: center; }
+  .powitanie .zakladki { justify-content: center; }
+
+  /* ===== ZAKŁADKI ===== */
+  .zakladki {
+    position: relative; display: flex; flex-wrap: wrap; gap: 32px;
+    margin-top: 40px; padding-bottom: 10px;
+    border-bottom: 1px solid rgba(230,230,236,0.15);
+  }
+  .zakladka {
+    background: none; border: 0; padding: 0;
+    font: 500 0.95rem "Space Grotesk", sans-serif;
+    color: rgba(230,230,236,0.55);
+  }
+  .zakladka:hover { color: var(--tekst); }
+  .zakladka[aria-selected="true"] { color: var(--cyjan); }
+  .krecha {
+    position: absolute; bottom: -1px; left: 0; height: 2px;
+    background: var(--cyjan);
+    transition: transform .45s cubic-bezier(.65,0,.35,1), width .45s cubic-bezier(.65,0,.35,1);
+  }
+  .widok[hidden] { display: none; }
+  .widoki { position: relative; }
+  .widoki.zmiana { overflow: hidden; }
+  .widok.stary { position: absolute; top: 0; left: 0; right: 0; z-index: 0; }
+  .widok.nowy  { position: relative; z-index: 1; background: var(--tlo); }
+  .krecha-pion {
+    position: fixed; top: 0; bottom: 0; left: 0; width: 1px; z-index: 50;   /* przez cały ekran */
+    background: var(--cyjan); opacity: 0; pointer-events: none;
+  }
+
+
+  /* ===== WSTĘPNIAK ZAKŁADKI ===== */
+  .wstep { max-width: 640px; margin: 0 auto; padding: 72px 24px 48px; text-align: center; }
+  .programy {
+    list-style: none; padding: 0; margin: 0 0 32px;
+    display: flex; justify-content: center; flex-wrap: wrap; gap: 40px;
+  }
+  .program { display: grid; justify-items: center; gap: 10px; font-size: 0.875rem; color: rgba(230,230,236,0.75); }
+  .program svg {
+    width: 44px; height: 44px; padding: 10px; box-sizing: border-box;
+    border: 1px solid color-mix(in srgb, var(--cyjan) 40%, transparent); border-radius: 50%;
+    color: var(--cyjan);
+  }
+  .wstep p { margin: 0 auto; max-width: 56ch; }
+
+
+  /* ===== GALERIA: filmy 1-2-3 ===== */
+  .galeria { height: 300vh; padding: 0; }
+  .przyklejone { position: sticky; top: 0; height: 100vh; overflow: hidden; }
+  .warstwa {
+    position: absolute; inset: 0;
+    background: var(--tlo);
+    display: grid; grid-template-columns: 1fr 2fr 1fr;
+    align-content: center; align-items: stretch;
+    gap: 32px; padding: 0 24px;
+  }
+  .lewa { align-self: start; }
+  .nazwa { font-size: clamp(1.75rem, 3.5vw, 3rem); line-height: 1; margin: 0; }
+  .tech {
+    list-style: none; padding: 0; margin: 16px 0 0;
+    font-size: 0.875rem; color: rgba(230,230,236,0.6);
+  }
+  .tech li { padding: 4px 0; border-top: 1px solid rgba(230,230,236,0.15); }
+  .opis { margin: 0; align-self: end; }
+
+  .film { position: relative; }           /* punkt odniesienia dla kości i "?" */
+  .okno { aspect-ratio: 16 / 9; overflow: hidden; background: var(--niebieski); }
+  .okno video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .linia {
+    position: absolute; left: 0; right: 0; height: 1px;
+    background: rgba(230,230,236,0.4); pointer-events: none;
+  }
+
+  /* ===== KOŚCI pod filmem 2, zgarniane przez kreskę filmu 3 ===== */
+  .kosci-na-linii {
+    position: absolute; left: 0; right: 0; height: 0; top: 100%;
+    display: flex; justify-content: center; align-items: flex-end; gap: 24px;
+    pointer-events: none;
+  }
+  .kosci-scena { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  .kosc { color: var(--cyjan); transform: rotate(var(--obrot)); transform-origin: bottom center; }
+  .kosc svg {
+    display: block; width: 100px; height: 32px;
+    transform-origin: bottom center;
+    animation: skok 3s infinite;
+    animation-delay: var(--opoznienie);
+  }
+  @keyframes skok {
+    0%, 60% { transform: translateY(0) rotate(0); animation-timing-function: cubic-bezier(0.2,0.8,0.3,1); }
+    66% { transform: translateY(-40px) rotate(var(--przechyl)); animation-timing-function: cubic-bezier(0.55,0,1,0.45); }
+    74% { transform: translateY(0) rotate(0); animation-timing-function: cubic-bezier(0.2,0.8,0.3,1); }
+    78% { transform: translateY(-10px) rotate(calc(var(--przechyl) * -0.4)); animation-timing-function: cubic-bezier(0.55,0,1,0.45); }
+    82% { transform: translateY(0) rotate(0); animation-timing-function: cubic-bezier(0.2,0.8,0.3,1); }
+    84% { transform: translateY(-3px) rotate(0); animation-timing-function: cubic-bezier(0.55,0,1,0.45); }
+    86%, 100% { transform: translateY(0) rotate(0); }
+  }
+
+
+  /* ===== słowo "solve" skacze w rytm jointów, słabiej ===== */
+  .podskok {
+    display: inline-block; color: var(--cyjan);
+    transform-origin: bottom center;
+    animation: skok-slabszy 3s infinite;
+  }
+  @keyframes skok-slabszy {
+    0%, 60% { transform: translateY(0); animation-timing-function: cubic-bezier(0.2,0.8,0.3,1); }
+    66% { transform: translateY(-12px) rotate(-3deg); animation-timing-function: cubic-bezier(0.55,0,1,0.45); }
+    74% { transform: translateY(0); animation-timing-function: cubic-bezier(0.2,0.8,0.3,1); }
+    78% { transform: translateY(-3px) rotate(1deg); animation-timing-function: cubic-bezier(0.55,0,1,0.45); }
+    82% { transform: translateY(0); animation-timing-function: cubic-bezier(0.2,0.8,0.3,1); }
+    84% { transform: translateY(-1px); animation-timing-function: cubic-bezier(0.55,0,1,0.45); }
+    86%, 100% { transform: translateY(0); }
+  }
+
+  /* ===== ZNAK ZAPYTANIA obok filmu 3 ===== */
+  .pytanie {
+    position: absolute; top: 50%; left: calc(100% + 16px); transform: translateY(-50%);
+    width: 24px; height: 42px; padding: 0;
+    background: none; border: 0; color: var(--cyjan);
+  }
+  .pytanie svg { display: block; width: 24px; height: 42px; }
+  .pytanie .dymek {
+    position: absolute; top: 36px; left: 0; width: 200px;
+    padding: 10px 12px; background: var(--fiolet); color: var(--tekst);
+    font: 400 0.8rem/1.4 "Inter", sans-serif; text-align: left;
+    opacity: 0; transform: translateY(-4px); pointer-events: none;
+    transition: opacity .2s, transform .2s;
+  }
+  .pytanie:hover .dymek, .pytanie:focus-visible .dymek { opacity: 1; transform: none; }
+
+  /* ===== KURSOR-JOINT ===== */
+  .kursor {
+    position: fixed; top: 0; left: 0;
+    width: 30px; height: 30px; margin: -15px 0 0 -15px;   /* rozmiar w spoczynku */
+    pointer-events: none; z-index: 9999; perspective: 300px;
+  }
+  .joint { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; }
+  .pierscien { position: absolute; inset: 0; border: 1.5px solid var(--cyjan); border-radius: 50%; }
+  .yz { transform: rotateY(90deg); }
+  .xz { transform: rotateX(90deg); }
+  body, a, button { cursor: none; }
+
+  footer { padding: 32px 24px; text-align: center; color: rgba(230,230,236,0.6); font-size: 0.875rem; }
+
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--cyjan); outline-offset: 3px; }
+
+  /* ===== TELEFON ===== */
+  @media (hover: none) {
+    .kursor { display: none; }
+    body, a, button { cursor: auto; }
+  }
+  @media (max-width: 800px) {
+    .warstwa { grid-template-columns: 1fr; align-content: center; gap: 16px; }
+    .pytanie { left: auto; right: 8px; top: 8px; transform: none; }
+    .pytanie .dymek { left: auto; right: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .kosc svg, .podskok { animation: none; }
+  }
+</style>
+</head>
+<body data-zakladka="locomotion">
+<canvas id="kratka" aria-hidden="true"></canvas>
+<div class="krecha-pion" id="krechaPion" aria-hidden="true"></div>
+
+<!-- kursor -->
+<div class="kursor" id="kursor">
+  <div class="joint" id="joint">
+    <div class="pierscien"></div>
+    <div class="pierscien yz"></div>
+    <div class="pierscien xz"></div>
+  </div>
+</div>
+
+<!-- wzór kości (niewidoczny, używany przez <use>) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="kosc" viewBox="0 0 124 40">
+    <g fill="none" stroke="currentColor" stroke-width="1.2">
+      <circle cx="14" cy="20" r="12"/><ellipse cx="14" cy="20" rx="12" ry="4"/><ellipse cx="14" cy="20" rx="4" ry="12"/>
+      <line x1="14" y1="8" x2="102" y2="20"/><line x1="14" y1="32" x2="102" y2="20"/><line x1="26" y1="22" x2="102" y2="20"/>
+      <circle cx="110" cy="20" r="8"/><ellipse cx="110" cy="20" rx="8" ry="3"/><ellipse cx="110" cy="20" rx="3" ry="8"/>
+    </g>
+  </symbol>
+  <symbol id="ik-kod" viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ik-kostka" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zM12 12l8-4.5M12 12v9M12 12L4 7.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+  <symbol id="ik-zebatka" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="ik-kamera" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M16 10l5-3v10l-5-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+  <symbol id="ik-teczka" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9 7V5h6v2M3 12h18" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+</svg>
+
+<section class="powitanie">
+  <div class="srodek">
+    <h1>Michał <span class="laufer">Laufer</span></h1>
+    <p>I build humanoid robots.</p>
+    <div class="zakladki" role="tablist" aria-label="Portfolio">
+      <button class="zakladka" role="tab" id="tab-experience" aria-controls="experience" aria-selected="false">Experience</button>
+      <button class="zakladka" role="tab" id="tab-locomotion" aria-controls="locomotion" aria-selected="true">Humanoid Robot Locomotion</button>
+      <button class="zakladka" role="tab" id="tab-animation" aria-controls="animation" aria-selected="false">3D Animation</button>
+      <span class="krecha" id="krecha"></span>
+    </div>
+  </div>
+</section>
+
+<div class="widoki" id="widoki">
+<div class="widok" id="experience" role="tabpanel" aria-labelledby="tab-experience" hidden>
+  <section class="wstep">
+    <ul class="programy">
+      <li class="program"><svg aria-hidden="true"><use href="#ik-teczka"/></svg>Company A</li>
+      <li class="program"><svg aria-hidden="true"><use href="#ik-zebatka"/></svg>Company B</li>
+      <li class="program"><svg aria-hidden="true"><use href="#ik-kod"/></svg>Freelance</li>
+    </ul>
+    <p>Placeholder: a short intro about your experience — where you worked, what you were responsible for, and why it matters for humanoid robotics.</p>
+  </section>
+</div>
+
+<div class="widok" id="locomotion" role="tabpanel" aria-labelledby="tab-locomotion">
+  <section class="wstep">
+    <ul class="programy">
+      <li class="program"><svg aria-hidden="true"><use href="#ik-kod"/></svg>ROS 2</li>
+      <li class="program"><svg aria-hidden="true"><use href="#ik-zebatka"/></svg>Python</li>
+      <li class="program"><svg aria-hidden="true"><use href="#ik-kostka"/></svg>MuJoCo</li>
+    </ul>
+    <p>Placeholder: why locomotion? Write 2–3 sentences about the tools you use, what you think of them, and what problem you are trying to <span style="white-space:nowrap"><span class="podskok">solve</span>.</span></p>
+  </section>
+<section class="galeria" id="projects">
+  <div class="przyklejone">
+
+    <!-- FILM 1 -->
+    <div class="warstwa">
+      <div class="lewa">
+        <h2 class="nazwa">Bipedal walking</h2>
+        <ul class="tech"><li>12 DOF</li><li>ROS 2 · Python</li><li>MG996R servos</li></ul>
+      </div>
+      <div class="film">
+        <div class="okno"><video src="chod.mp4" autoplay muted loop playsinline></video></div>
+      </div>
+      <p class="opis">ZMP balance controller for a 12-DOF servo robot.</p>
+    </div>
+
+    <!-- FILM 2 + kości na kresce -->
+    <div class="warstwa">
+      <div class="lewa">
+        <h2 class="nazwa">Tactile hand</h2>
+        <ul class="tech"><li>5 fingers · 6 DOF</li><li>Arduino · C++</li><li>FSR sensors</li></ul>
+      </div>
+      <div class="film">
+        <div class="okno"><video src="dlon.mp4" autoplay muted loop playsinline></video></div>
+      </div>
+      <p class="opis">3D-printed hand with pressure sensors that can hold an egg.</p>
+    </div>
+
+    <!-- FILM 3 + znak zapytania -->
+    <div class="warstwa">
+      <div class="lewa">
+        <h2 class="nazwa">Face tracking head</h2>
+        <ul class="tech"><li>2 DOF</li><li>OpenCV · Raspberry Pi</li><li>30 fps tracking</li></ul>
+      </div>
+      <div class="film">
+        <div class="okno"><video src="glowa.mp4" autoplay muted loop playsinline></video></div>
+        <button class="pytanie" type="button" aria-label="More info">
+          <svg viewBox="0 0 24 42" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1,9 7,21 1,33"/><polyline points="9,9 15,21 9,33"/><polyline points="17,9 23,21 17,33"/>
+          </svg>
+          <span class="dymek">Tu wpisz dodatkową informację o projekcie.</span>
+        </button>
+      </div>
+      <p class="opis">Camera and two servos – the head follows whoever is talking.</p>
+    </div>
+
+    <div class="linia"></div>
+    <div class="kosci-scena" id="kosciScena">
+    <div class="kosci-na-linii" id="kosciLinia" aria-hidden="true">
+      <div class="kosc" style="--opoznienie:0s;    --obrot:-8deg; --przechyl:6deg"><svg><use href="#kosc"/></svg></div>
+      <div class="kosc" style="--opoznienie:0.05s; --obrot:5deg;  --przechyl:-9deg"><svg><use href="#kosc"/></svg></div>
+      <div class="kosc" style="--opoznienie:0.1s;  --obrot:-3deg; --przechyl:4deg"><svg><use href="#kosc"/></svg></div>
+    </div>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<div class="widok" id="animation" role="tabpanel" aria-labelledby="tab-animation" hidden>
+  <section class="wstep">
+    <ul class="programy">
+      <li class="program"><svg aria-hidden="true"><use href="#ik-kostka"/></svg>Autodesk Maya</li>
+      <li class="program"><svg aria-hidden="true"><use href="#ik-kamera"/></svg>Blender</li>
+      <li class="program"><svg aria-hidden="true"><use href="#ik-zebatka"/></svg>Houdini</li>
+    </ul>
+    <p>Placeholder: why 3D animation is on a robotics portfolio — e.g. how rigging and motion design help you think about real robot movement.</p>
+  </section>
+</div>
+</div>
+
+<section id="about">
+  <div class="srodek">
+    <h2>About</h2>
+    <p>Coming soon.</p>
+  </div>
+</section>
+
+<section id="contact">
+  <div class="srodek">
+    <h2>Contact</h2>
+    <p>Coming soon.</p>
+  </div>
+</section>
+
+<footer>© 2026 Michał Laufer</footer>
+
+<script>
+  /* ===== GALERIA ===== */
+  const galeria = document.querySelector(".galeria");
+  const warstwy = galeria.querySelectorAll(".warstwa");
+  const linia = galeria.querySelector(".linia");
+  const kosciLinia = document.getElementById("kosciLinia");
+
+  function przewijanie() {
+    const r = galeria.getBoundingClientRect();
+    const postep = Math.min(Math.max(-r.top / (r.height - innerHeight), 0), 1);
+    const krok = postep * (warstwy.length - 1);
+    let pozycjaLinii = null;
+
+    warstwy.forEach((w, i) => {
+      if (i === 0) return;
+      const ile = Math.min(Math.max(krok - (i - 1), 0), 1);
+      w.style.clipPath = `inset(${(1 - ile) * 100}% 0 0 0)`;
+      if (ile > 0 && ile < 1) pozycjaLinii = (1 - ile) * 100;
+    });
+
+    linia.style.display = pozycjaLinii === null ? "none" : "block";
+    if (pozycjaLinii !== null) linia.style.top = pozycjaLinii + "%";
+
+    /* kości leżą pod filmem 2, a kreska filmu 3 zgarnia je do góry */
+    const scena = galeria.querySelector(".przyklejone").getBoundingClientRect();
+    const okno2 = warstwy[1].querySelector(".okno").getBoundingClientRect();
+    const spoczynek = okno2.bottom - scena.top + 90;          // 90px pod filmem 2
+    const ile3 = Math.min(Math.max(krok - 1, 0), 1);
+    const kreska = (1 - ile3) * scena.height;                  // gdzie jest kreska filmu 3
+    kosciLinia.style.top = Math.min(spoczynek, kreska) + "px"; // kreska dogania i pcha w górę
+    document.getElementById("kosciScena").style.clipPath = warstwy[1].style.clipPath; // pojawiają się razem z filmem 2
+  }
+  addEventListener("scroll", przewijanie);
+
+  const powitanie = document.querySelector(".powitanie .srodek");
+  addEventListener("resize", przewijanie);
+  przewijanie();
+
+
+
+  /* ===== ZAKŁADKI ===== */
+  const zakladki = document.querySelectorAll(".zakladka");
+  const krecha = document.getElementById("krecha");
+
+  function ustawKreche(tab) {
+    krecha.style.width = tab.offsetWidth + "px";
+    krecha.style.transform = `translateX(${tab.offsetLeft}px)`;
+  }
+  const widoki = document.getElementById("widoki");
+  const krechaPion = document.getElementById("krechaPion");
+  let wTrakcie = false;
+
+  function pokaz(tab) {
+    const stara = document.querySelector('.zakladka[aria-selected="true"]');
+    if (tab === stara || wTrakcie) return;
+    const lista = [...zakladki];
+    const wPrawo = lista.indexOf(tab) > lista.indexOf(stara);
+    const staryWidok = document.getElementById(stara.getAttribute("aria-controls"));
+    const nowyWidok = document.getElementById(tab.getAttribute("aria-controls"));
+
+    zakladki.forEach(t => t.setAttribute("aria-selected", t === tab));
+    ustawKreche(tab);
+    document.body.dataset.zakladka = tab.getAttribute("aria-controls");   // zmiana koloru strony
+
+    if (ruchOgraniczony) {            // bez animacji dla osób z ograniczeniem ruchu
+      staryWidok.hidden = true; nowyWidok.hidden = false; przewijanie(); return;
+    }
+
+    wTrakcie = true;
+    widoki.classList.add("zmiana");
+    staryWidok.classList.add("stary");
+    nowyWidok.classList.add("nowy");
+    nowyWidok.hidden = false;
+
+    const czas = 800, krzywa = "cubic-bezier(0, 0.55, 0.45, 1)";   // ease-out
+    const od = wPrawo ? "inset(0 0 0 100%)" : "inset(0 100% 0 0)";
+    nowyWidok.animate([{ clipPath: od }, { clipPath: "inset(0 0 0 0)" }], { duration: czas, easing: krzywa });
+    krechaPion.animate(
+      [{ left: wPrawo ? "100vw" : "0vw", opacity: 1 }, { left: wPrawo ? "0vw" : "100vw", opacity: 1 }],
+      { duration: czas, easing: krzywa }
+    ).onfinish = () => {
+      staryWidok.hidden = true;
+      staryWidok.classList.remove("stary");
+      nowyWidok.classList.remove("nowy");
+      widoki.classList.remove("zmiana");
+      wTrakcie = false;
+      przewijanie();
+    };
+  }
+  zakladki.forEach(t => t.addEventListener("click", () => pokaz(t)));
+  addEventListener("resize", () => ustawKreche(document.querySelector('.zakladka[aria-selected="true"]')));
+  document.fonts.ready.then(() => ustawKreche(document.getElementById("tab-locomotion")));
+  ustawKreche(document.getElementById("tab-locomotion"));
+
+
+  /* ===== KRATKA z rybim okiem (fisheye) ===== */
+  const plotno = document.getElementById("kratka");
+  const ruchOgraniczony = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const ctx = plotno.getContext("2d");
+  const laufer = document.querySelector(".laufer");
+  const SILA = 0.12;              // siła rybiego oka: 0 = płasko, 0.3 = mocno
+  const LINIA = "rgba(230,230,236,0.054)";
+  const KROPKA = "rgba(230,230,236,0.315)";
+  const POLE = "rgba(230,230,236,0.072)";
+  let w, h, dpr;
+
+  function rozmiar() {
+    dpr = devicePixelRatio || 1;
+    w = innerWidth; h = innerHeight;
+    plotno.width = w * dpr; plotno.height = h * dpr;
+  }
+
+  // zniekształcenie: środek ekranu lekko powiększony, brzegi w miejscu
+  function oko(x, y) {
+    const cx = w / 2, cy = h / 2, R = Math.hypot(cx, cy);
+    const dx = (x - cx) / R, dy = (y - cy) / R;
+    const r2 = dx * dx + dy * dy;
+    const f = (1 + SILA) / (1 + SILA * r2);
+    return [cx + dx * f * R, cy + dy * f * R];
+  }
+
+  let przesuw = 0;                 // jak daleko kratka odpłynęła w prawo
+  const PREDKOSC = ruchOgraniczony ? 0 : 8;   // px na sekundę
+  let ostatni = performance.now();
+
+  function rysuj(teraz = performance.now()) {
+    przesuw += PREDKOSC * Math.min(teraz - ostatni, 100) / 1000;
+    ostatni = teraz;
+    const k = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--kratka"));
+    const sy = scrollY, H = document.documentElement.scrollHeight;
+    const KAT = 15 * Math.PI / 180;                  // kierunek lotu: 15° w górę od poziomu
+    const px = przesuw * Math.cos(KAT), py = -przesuw * Math.sin(KAT);
+    const mod = (v, m) => ((v % m) + m) % m;
+    const PRZEWIJANIE_KRATKI = 0.5;                   // 1 = jak strona, 0.5 = 2x wolniej
+    const pyS = py - sy * PRZEWIJANIE_KRATKI;
+    const ox = mod(px, k), oy = mod(pyS, k), ox4 = mod(px, k * 4), oy4 = mod(pyS, k * 4);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    // linie (kratka stoi w miejscu przy przewijaniu, płynie tylko w bok)
+    ctx.strokeStyle = LINIA; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = ox - k; x <= w + k; x += k) {
+      for (let y = -k; y <= h + k; y += 16) {
+        const [a, b] = oko(x, y);
+        y === -k ? ctx.moveTo(a, b) : ctx.lineTo(a, b);
+      }
+    }
+    for (let y = oy - k; y <= h + k; y += k) {
+      for (let x = -k; x <= w + k; x += 16) {
+        const [a, b] = oko(x, y);
+        x === -k ? ctx.moveTo(a, b) : ctx.lineTo(a, b);
+      }
+    }
+    ctx.stroke();
+
+    // kropki co 4 pola
+    ctx.fillStyle = KROPKA;
+    for (let x = ox4 - k * 4; x <= w; x += k * 4) {
+      for (let y = oy4 - k * 4; y <= h; y += k * 4) {
+        const [a, b] = oko(x, y);
+        ctx.beginPath(); ctx.arc(a, b, 1.5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    // zanikanie: kratka widoczna tylko u góry (0–12%) i na dole (88–100%) strony
+    // zanikanie przyczepione do samej kratki – nie zależy od wysokości strony ani zakładki
+    const gTop = -sy * PRZEWIJANIE_KRATKI;
+    const g = ctx.createLinearGradient(0, gTop, 0, gTop + GLEBOKOSC_GORA);
+    g.addColorStop(0, "#000"); g.addColorStop(0.44, "rgba(0,0,0,0.6)"); g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = "source-over";
+
+    // szachownica wokół "Laufer" – pola płyną razem z kratką
+    const b0 = laufer.getBoundingClientRect();         // szachownica zawsze za "Laufer"
+    const r = { left: b0.left, right: b0.right, top: b0.top + OBNIZENIE, bottom: b0.bottom + OBNIZENIE };
+    const L = r.left - 130, T = r.top - 70, Rr = r.right + 130, B = r.bottom + 70;   // zasięg szachownicy
+    if (B > 0 && T < h) {
+      const mx = (L + Rr) / 2, my = (T + B) / 2, rx = (Rr - L) / 2, ry = (B - T) / 2;
+      const i0 = Math.floor((L - px) / k), i1 = Math.ceil((Rr - px) / k);
+      const j0 = Math.floor((T - pyS) / k), j1 = Math.ceil((B - pyS) / k);
+      for (let i = i0; i < i1; i++) for (let j = j0; j < j1; j++) {
+        if (((i + j) % 2 + 2) % 2) continue;
+        const x = i * k + px, y = j * k + pyS;
+        const d = Math.hypot((x + k / 2 - mx) / rx, (y + k / 2 - my) / ry);
+        if (d >= 1) continue;
+        const sila = d < 0.25 ? 1 - d : d < 0.5 ? 0.75 - (d - 0.25) * 1.4 : d < 0.75 ? 0.4 - (d - 0.5) * 1.12 : 0.12 - (d - 0.75) * 0.48;
+        ctx.fillStyle = `rgba(230,230,236,${0.15 * Math.max(sila, 0)})`;   // intensywność szachownicy
+        const p = [oko(x, y), oko(x + k, y), oko(x + k, y + k), oko(x, y + k)];
+        ctx.beginPath(); ctx.moveTo(...p[0]); p.slice(1).forEach(q => ctx.lineTo(...q)); ctx.fill();
+      }
+    }
+    requestAnimationFrame(rysuj);   // rysuje się ciągle, bo kratka płynie
+  }
+
+  /* środek szachownicy obniżony, bo rybie oko wypycha pola w górę */
+  const OBNIZENIE = 26;
+  const GLEBOKOSC_GORA = 620;   // ile px od góry strony kratka zanika (jak w zakładce Humanoid)
+  addEventListener("resize", rozmiar);
+  rozmiar();
+  requestAnimationFrame(rysuj);
+
+  /* ===== KURSOR ===== */
+  const kursor = document.getElementById("kursor");
+  const joint = document.getElementById("joint");
+  let mx = innerWidth / 2, my = innerHeight / 2, x = mx, y = my, obrX = 0, obrY = 0;
+  let skala = 1;
+  const MIN_SKALA = 15 / 30;       // w szybkim ruchu: 15px
+
+  addEventListener("pointermove", (e) => { mx = e.clientX; my = e.clientY; });
+
+  function animuj() {
+    const vx = (mx - x) * 0.25, vy = (my - y) * 0.25;
+    x += vx; y += vy;
+    obrY += vx * 2 + 0.3;
+    obrX -= vy * 2;
+    const predkosc = Math.hypot(vx, vy);                       // px na klatkę
+    const cel = 1 - Math.min(predkosc / 25, 1) * (1 - MIN_SKALA);
+    skala += (cel - skala) * 0.15;                               // płynna zmiana rozmiaru
+    kursor.style.transform = `translate(${x}px, ${y}px) scale(${skala})`;
+    joint.style.transform = `rotateX(${obrX}deg) rotateY(${obrY}deg)`;
+    requestAnimationFrame(animuj);
+  }
+  animuj();
+</script>
+</body>
+</html>

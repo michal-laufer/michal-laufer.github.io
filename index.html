@@ -70,7 +70,7 @@
 
   /* ===== całe UI powiększone o 50% (kratka, kursor i układ galerii bez zmian) ===== */
   .powitanie .srodek, .wstep, #contact .srodek, footer,
-  .lewa, .opis, .doswiadczenie { zoom: 1.5; }
+  .lewa, .doswiadczenie { zoom: 1.5; }
   .kosci-na-linii .kosc svg { width: 150px; height: 48px; }   /* kości też +50% */
 
   /* ===== ZAKŁADKI ===== */
@@ -127,7 +127,7 @@
   }
   /* logotypy programów: oryginalne kolory, bez ramki i bez przebarwiania
      (znaki towarowe wolno pokazywać tylko w niezmienionej postaci) */
-  .program img { width: 42px; height: 42px; object-fit: contain; display: block; }
+  .program img { width: 42px; height: 42px; object-fit: contain; display: block; border-radius: 8px; }
   .wstep p { margin: 0 auto; max-width: 56ch; }
 
 
@@ -211,7 +211,7 @@
   }
   .portret.brak img { display: none; }
   .portret.brak::after {
-    content: "foto.jpg"; font: 400 0.75rem "Space Grotesk", sans-serif;
+    content: "ML_prof.jpg"; font: 400 0.75rem "Space Grotesk", sans-serif;
     letter-spacing: .1em; color: rgba(230,230,236,0.35);
   }
   @media (max-width: 700px) { .portret { width: 190px; } }
@@ -277,7 +277,9 @@
     font-size: 0.875rem; color: rgba(230,230,236,0.6);
   }
   .tech li { padding: 4px 0; border-top: 1px solid rgba(230,230,236,0.15); }
-  .opis { margin: 0; align-self: end; }
+  /* prawa kolumna: opis + zajawka pod nim, całość na środku wysokości filmu */
+  .prawa { align-self: center; }
+  .opis { margin: 0; font-size: 1.5rem; line-height: 1.6; }
 
   .film { position: relative; }           /* punkt odniesienia dla kości i "?" */
   .okno { aspect-ratio: 16 / 9; overflow: hidden; background: var(--niebieski); }
@@ -332,24 +334,15 @@
   }
 
 
-  /* ===== ZAJAWKA pod filmem: tekst zanika, nad nim strzałki VVV ===== */
-  .warstwa { padding-bottom: 160px; }          /* cały wiersz z filmem lekko wyżej */
-  .zajawka {
-    position: absolute; top: calc(100% + 20px); left: 0; right: 0;
-    text-align: center;
-  }
-  .zajawka { height: 92px; }                 /* stała wysokość: VVV zawsze w tej samej odległości od filmu */
+  /* ===== ZAJAWKA: pod opisem w prawej kolumnie, ucięta trzykropkiem ===== */
+  .zajawka { margin-top: 22px; max-width: 440px; }   /* tylko mniejszy tekst łamie się wcześniej */
   .zajawka p {
-    height: 92px; overflow: hidden;
-    margin: 0 auto; max-width: 52ch;
-    font-size: 1.1rem; line-height: 1.6; color: rgba(230,230,236,0.8);
-    -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,0.6) 40%, transparent 90%);
-            mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,0.6) 40%, transparent 90%);
+    margin: 0;
+    font-size: 1.1rem; line-height: 1.6;
+    /* trzykropek bierze kolor z <p>, sam tekst ze <span> – stąd kolorowy "…" */
+    color: var(--cyjan);
   }
-  .strzalki-dol {
-    position: absolute; left: 50%; bottom: -4px; transform: translateX(-50%);
-    width: 42px; height: 24px; color: var(--cyjan);
-  }
+  .zajawka p > span { color: rgba(230,230,236,0.55); }
 
 
   /* ===== ROZWINIĘCIE PROJEKTU (po kliknięciu zajawki) ===== */
@@ -483,8 +476,8 @@
   @media (max-width: 800px) {
     .warstwa { grid-template-columns: 1fr; align-content: center; gap: 16px; }
     .pytanie { left: auto; right: 8px; top: 8px; transform: none; }
-    .warstwa { padding-bottom: 0; }
-    .zajawka { position: relative; top: auto; margin-top: 16px; }
+    .zajawka { margin-top: 14px; }
+    .opis { font-size: 1.15rem; }
     .pytanie .dymek { left: auto; right: 0; }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -540,8 +533,8 @@
 <!-- ===== ABOUT ME ===== -->
 <div class="omnie" id="omnie" role="dialog" aria-modal="true" aria-labelledby="omnie-tytul" aria-hidden="true">
   <div class="omnie-srodek">
-    <!-- ZDJĘCIE: wrzuć plik foto.jpg obok index.html (kadr pionowy, ok. 4:5) -->
-    <figure class="portret"><img src="foto.jpg" alt="Michał Laufer"></figure>
+    <!-- ZDJĘCIE: wrzuć plik ML_prof.jpg obok index.html (kadr pionowy, ok. 4:5) -->
+    <figure class="portret"><img src="ML_prof.jpg" alt="Michał Laufer"></figure>
     <div class="omnie-tekst">
       <h2 id="omnie-tytul">About me</h2>
       <p>My background in 3D animation is a working foundation in body mechanics, skeletal structures, kinematics and motion representation. I now spend my time with motion data and skeletal datasets, on how human movement can be processed, represented and applied within robotic systems. My interests run through humanoid robotics, motion data pipelines, locomotion, simulation and robot learning — animation-based understanding of movement, with an expanding technical foundation underneath it.</p>
@@ -602,9 +595,9 @@
 <div class="widok" id="locomotion" role="tabpanel" aria-labelledby="tab-locomotion">
   <section class="wstep">
     <ul class="programy">
-      <li class="program"><svg aria-hidden="true"><use href="#ik-postac"/></svg>Unitree G1</li>
-      <li class="program"><svg aria-hidden="true"><use href="#ik-kod"/></svg>Python</li>
-      <li class="program"><svg aria-hidden="true"><use href="#ik-kostka"/></svg>mjlab · MuJoCo Warp</li>
+      <li class="program"><img src="logo/claude_logo.svg" alt="Claude" width="42" height="42">Claude</li>
+      <li class="program"><img src="logo/python_logo.png" alt="Python" width="42" height="42">Python</li>
+      <li class="program"><img src="logo/mjlab_logo.png" alt="mjlab" width="42" height="42">mjlab · MuJoCo Warp</li>
     </ul>
     <p>I take a phone recording of a person doing physical work and turn it into a policy that performs the same task on a Unitree G1 in simulation. The interesting part is not the walking — it is everything the body does while carrying, swinging or placing something, where contact decides whether the motion <span style="white-space:nowrap"><span class="podskok">holds</span>.</span></p>
   </section>
@@ -620,14 +613,13 @@
       <div class="film">
         <!-- wideo referencyjne: podmień src na swój plik -->
         <div class="okno"><video src="drabina.mp4" autoplay muted loop playsinline></video></div>
+      </div>
+      <div class="prawa">
+        <p class="opis">The G1 carries a ladder, unfolds it, climbs up, comes back down, folds it and carries it away — one continuous motion taken from a human recording.</p>
         <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
-          <p>The ladder has a hinge, so the object changes shape during the task — the robot manipulates it and then has to stand on something it unfolded itself. Across 18 seconds of continuous motion, errors from the early phases compound into the later ones.</p>
-          <svg class="strzalki-dol" viewBox="0 0 42 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9,1 21,7 33,1"/><polyline points="9,9 21,15 33,9"/><polyline points="9,17 21,23 33,17"/>
-          </svg>
+          <p><span>The ladder has a hinge, so the object changes shape during the task — the robot manipulates it and then has to stand on something it unfolded itself. Across 18 seconds of continuous motion, errors from the early phases compound into the later ones.</span></p>
         </div>
       </div>
-      <p class="opis">The G1 carries a ladder, unfolds it, climbs up, comes back down, folds it and carries it away — one continuous motion taken from a human recording.</p>
       <!-- SZCZEGÓŁY tego projektu (widoczne po kliknięciu zajawki) -->
       <template class="szczegoly">
         <div class="r-lancuch"><span>GVHMR</span> <i>→</i> <span>GMR</span> <i>→</i> <span>my ladder + finger scripts</span> <i>→</i> <span>mjlab · PPO</span></div>
@@ -655,14 +647,13 @@
       <div class="film">
         <!-- wideo referencyjne: podmień src na swój plik -->
         <div class="okno"><video src="kilof.mp4" autoplay muted loop playsinline></video></div>
+      </div>
+      <div class="prawa">
+        <p class="opis">The G1 digs with a physical pickaxe, held in both Dex3 hands, from a motion recorded off a person.</p>
         <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
-          <p>The tool is a free body held by nothing but contact forces. Every strike into the ground is an impulse that can knock the pickaxe straight out of the hands, so the grip has to survive the motion rather than be assumed by it.</p>
-          <svg class="strzalki-dol" viewBox="0 0 42 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9,1 21,7 33,1"/><polyline points="9,9 21,15 33,9"/><polyline points="9,17 21,23 33,17"/>
-          </svg>
+          <p><span>The tool is a free body held by nothing but contact forces. Every strike into the ground is an impulse that can knock the pickaxe straight out of the hands, so the grip has to survive the motion rather than be assumed by it.</span></p>
         </div>
       </div>
-      <p class="opis">The G1 digs with a physical pickaxe, held in both Dex3 hands, from a motion recorded off a person.</p>
       <!-- SZCZEGÓŁY tego projektu (widoczne po kliknięciu zajawki) -->
       <template class="szczegoly">
         <div class="r-lancuch"><span>[tool]</span> <i>→</i> <span>Maya</span> <i>→</i> <span>Blender</span> <i>→</i> <span>GMR</span> <i>→</i> <span>mjlab · 4800 envs</span></div>
@@ -690,12 +681,6 @@
       <div class="film">
         <!-- wideo: na razie referencja kinematyczna, nie trening w fizyce -->
         <div class="okno"><video src="cegly.mp4" autoplay muted loop playsinline></video></div>
-        <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
-          <p>In the source recording the person is carrying something else entirely, so there are no bricks in the data at all. The objects, their trajectories and the grip had to be built from scratch — and built so that they remain physically executable.</p>
-          <svg class="strzalki-dol" viewBox="0 0 42 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9,1 21,7 33,1"/><polyline points="9,9 21,15 33,9"/><polyline points="9,17 21,23 33,17"/>
-          </svg>
-        </div>
         <button class="pytanie" type="button" aria-label="More info">
           <svg viewBox="0 0 24 42" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="1,9 7,21 1,33"/><polyline points="9,9 15,21 9,33"/><polyline points="17,9 23,21 17,33"/>
@@ -703,7 +688,12 @@
           <span class="dymek">The clip shows the kinematic reference, not a trained policy — physics training is the next step.</span>
         </button>
       </div>
-      <p class="opis">The G1 carries four bricks in pairs and lays them in an even row, reconstructed from a single phone recording.</p>
+      <div class="prawa">
+        <p class="opis">The G1 carries four bricks in pairs and lays them in an even row, reconstructed from a single phone recording.</p>
+        <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
+          <p><span>In the source recording the person is carrying something else entirely, so there are no bricks in the data at all. The objects, their trajectories and the grip had to be built from scratch — and built so that they remain physically executable.</span></p>
+        </div>
+      </div>
       <!-- SZCZEGÓŁY tego projektu (widoczne po kliknięciu zajawki) -->
       <template class="szczegoly">
         <div class="r-lancuch"><span>GVHMR</span> <i>→</i> <span>GMR</span> <i>→</i> <span>object + grip reconstruction</span> <i>→</i> <span>mjlab · RL in progress</span></div>
@@ -739,11 +729,11 @@
   <section class="wstep">
     <ul class="programy">
       <!-- logotypy: wrzuć pliki do folderu logo/ obok index.html -->
-      <li class="program"><img src="logo/blender.svg" alt="Blender" width="42" height="42">Blender</li>
-      <li class="program"><img src="logo/maya.svg" alt="Maya" width="42" height="42">Maya</li>
-      <li class="program"><img src="logo/motionbuilder.svg" alt="MotionBuilder" width="42" height="42">MotionBuilder</li>
+      <li class="program"><img src="logo/blender_logo.png" alt="Blender" width="42" height="42">Blender</li>
+      <li class="program"><img src="logo/maya_logo.png" alt="Maya" width="42" height="42">Maya</li>
+      <li class="program"><img src="logo/motionbuilder_logo.png" alt="MotionBuilder" width="42" height="42">MotionBuilder</li>
     </ul>
-    <p>I'm still working things out, and most of it happens inside the arc of a movement: where the weight sits along it, what the silhouette is doing while it travels. That's where character animation either holds together or doesn't.</p>
+    <p>I'm still working things out, and most of it happens inside the arc of a movement: where the weight sits along it, what the silhouette is doing while it travels. That's where character animation either holds together or starts to fall apart.</p>
   </section>
 
   <section class="galeria" id="animation-projects">
@@ -758,14 +748,13 @@
       <div class="film">
         <!-- film: https://www.youtube.com/watch?v=5bAEeWfuuTE – wstaw plik .mp4 w src -->
         <div class="okno"><video src="video_REUNION.mp4" preload="metadata" data-youtube="5bAEeWfuuTE" autoplay muted loop playsinline></video></div>
+      </div>
+      <div class="prawa">
+        <p class="opis">Fan film animated in the style of Arcane — stylized, graphic performance instead of realistic motion.</p>
         <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
-          <p>I built the base pass another animator worked on top of. That changes how you animate: keys have to be readable by someone else, timing has to be committed rather than vague, and the scene has to be clean enough to hand over without a conversation attached to every shot.</p>
-          <svg class="strzalki-dol" viewBox="0 0 42 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9,1 21,7 33,1"/><polyline points="9,9 21,15 33,9"/><polyline points="9,17 21,23 33,17"/>
-          </svg>
+          <p><span>I built the base pass another animator worked on top of. That changes how you animate: keys have to be readable by someone else, timing has to be committed rather than vague, and the scene has to be clean enough to hand over without a conversation attached to every shot.</span></p>
         </div>
       </div>
-      <p class="opis">Fan film animated in the style of Arcane — stylized, graphic performance instead of realistic motion.</p>
       <!-- SZCZEGÓŁY tego projektu (widoczne po kliknięciu zajawki) -->
       <template class="szczegoly">
         <div class="r-rozwoje">
@@ -790,14 +779,13 @@
       <div class="film">
         <!-- film: https://www.youtube.com/watch?v=ysJ-IEKDPAI – wstaw plik .mp4 w src -->
         <div class="okno"><video src="ad_Kaufland.mp4" preload="metadata" data-youtube="ysJ-IEKDPAI" autoplay muted loop playsinline></video></div>
+      </div>
+      <div class="prawa">
+        <p class="opis">TV campaign for kids. Playful, easy-to-read mascot animation — the pass that guided the AI-driven production.</p>
         <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
-          <p>A kids' spot gives you no second look. Every pose had to read as a silhouette, every beat had to land before the cut. The animation was also the first stage of the pipeline, not a reference thrown over the wall — weight, overlap and eye direction had to be locked in by hand.</p>
-          <svg class="strzalki-dol" viewBox="0 0 42 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9,1 21,7 33,1"/><polyline points="9,9 21,15 33,9"/><polyline points="9,17 21,23 33,17"/>
-          </svg>
+          <p><span>A kids' spot gives you no second look. Every pose had to read as a silhouette, every beat had to land before the cut. The animation was also the first stage of the pipeline, not a reference thrown over the wall — weight, overlap and eye direction had to be locked in by hand.</span></p>
         </div>
       </div>
-      <p class="opis">TV campaign for kids. Playful, easy-to-read mascot animation — the pass that guided the AI-driven production.</p>
       <!-- SZCZEGÓŁY tego projektu (widoczne po kliknięciu zajawki) -->
       <template class="szczegoly">
         <div class="r-rozwoje">
@@ -822,14 +810,13 @@
       <div class="film">
         <!-- film: https://www.youtube.com/watch?v=j1lxcv1QJSQ – wstaw plik .mp4 w src -->
         <div class="okno"><video src="trailer_Terror.mp4" preload="metadata" data-youtube="j1lxcv1QJSQ" autoplay muted loop playsinline></video></div>
+      </div>
+      <div class="prawa">
+        <p class="opis">Animation on custom MetaHuman characters, focused on body acting and facial expression, with scene layout and camera work planned for the cut.</p>
         <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
-          <p>Realistic human performance leaves no room for invention, so the work started before the keys: finding reference that actually matched the beat, and building it when no single clip did. Markerless capture turned that reference into something I could orbit and read in three dimensions instead of judging weight through someone else's camera.</p>
-          <svg class="strzalki-dol" viewBox="0 0 42 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9,1 21,7 33,1"/><polyline points="9,9 21,15 33,9"/><polyline points="9,17 21,23 33,17"/>
-          </svg>
+          <p><span>Realistic human performance leaves no room for invention, so the work started before the keys: finding reference that actually matched the beat, and building it when no single clip did. Markerless capture turned that reference into something I could orbit and read in three dimensions instead of judging weight through someone else's camera.</span></p>
         </div>
       </div>
-      <p class="opis">Animation on custom MetaHuman characters, focused on body acting and facial expression, with scene layout and camera work planned for the cut.</p>
       <!-- SZCZEGÓŁY tego projektu (widoczne po kliknięciu zajawki) -->
       <template class="szczegoly">
         <div class="r-rozwoje">
@@ -854,14 +841,13 @@
       <div class="film">
         <!-- film: https://www.youtube.com/watch?v=j1lxcv1QJSQ – wstaw plik .mp4 w src -->
         <div class="okno"><video src="ep2_just_a_die.mp4" preload="metadata" data-youtube="j1lxcv1QJSQ" autoplay muted loop playsinline></video></div>
+      </div>
+      <div class="prawa">
+        <p class="opis">Cutscenes included in the game. Contributed to additional shots after a previous successful collaboration.</p>
         <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
-          <p>Created animation blockouts for key sequences, establishing timing and poses to guide final animation. Worked closely with a second animator to ensure consistency, quality and smooth integration of shots.</p>
-          <svg class="strzalki-dol" viewBox="0 0 42 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9,1 21,7 33,1"/><polyline points="9,9 21,15 33,9"/><polyline points="9,17 21,23 33,17"/>
-          </svg>
+          <p><span>Created animation blockouts for key sequences, establishing timing and poses to guide final animation. Worked closely with a second animator to ensure consistency, quality and smooth integration of shots.</span></p>
         </div>
       </div>
-      <p class="opis">Cutscenes included in the game. Contributed to additional shots after a previous successful collaboration.</p>
       <!-- SZCZEGÓŁY tego projektu (widoczne po kliknięciu zajawki) -->
       <template class="szczegoly">
         <div class="r-rozwoje">
@@ -886,14 +872,13 @@
       <div class="film">
         <!-- film: https://www.youtube.com/watch?v=j1lxcv1QJSQ – wstaw plik .mp4 w src -->
         <div class="okno"><video src="trailer_just_a_die.mp4" preload="metadata" data-youtube="j1lxcv1QJSQ" autoplay muted loop playsinline></video></div>
+      </div>
+      <div class="prawa">
+        <p class="opis">Launch trailer for the game's Steam page — character performance carrying the cut, refined through rounds of senior review.</p>
         <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
-          <p>Focused on character performance and storytelling throughout the trailer. Refined shots based on external feedback from senior animators, improving overall animation quality and consistency. Applied personal creative input to enhance character performance and cinematic storytelling.</p>
-          <svg class="strzalki-dol" viewBox="0 0 42 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9,1 21,7 33,1"/><polyline points="9,9 21,15 33,9"/><polyline points="9,17 21,23 33,17"/>
-          </svg>
+          <p><span>Focused on character performance and storytelling throughout the trailer. Refined shots based on external feedback from senior animators, improving overall animation quality and consistency. Applied personal creative input to enhance character performance and cinematic storytelling.</span></p>
         </div>
       </div>
-      <p class="opis">Launch trailer for the game's Steam page — character performance carrying the cut, refined through rounds of senior review.</p>
       <!-- SZCZEGÓŁY tego projektu (widoczne po kliknięciu zajawki) -->
       <template class="szczegoly">
         <div class="r-rozwoje">
@@ -972,8 +957,8 @@
       const scenaKosci = galeria.querySelector("#kosciScena");
       if (scenaKosci && warstwy.length > 2) {
         const scena = galeria.querySelector(".przyklejone").getBoundingClientRect();
-        const zaj2 = warstwy[1].querySelector(".zajawka").getBoundingClientRect();
-        const spoczynek = zaj2.bottom - scena.top + 70;
+        const okno2 = warstwy[1].querySelector(".okno").getBoundingClientRect();
+        const spoczynek = okno2.bottom - scena.top + 70;
         const ile3 = Math.min(Math.max((krok - 1) / PRZEJSCIE, 0), 1);
         const kreska = (1 - ile3) * scena.height;
         kosciLinia.style.top = Math.min(spoczynek, kreska) + "px";
@@ -1214,6 +1199,17 @@
       document.documentElement.lang = b.dataset.jezyk === "zh" ? "zh" : "en";
       /* TODO: tutaj podmiana treści na chińską */
     });
+  });
+
+  /* ===== ZAJAWKA: ucięcie zawsze na całym słowie + kolorowy trzykropek ===== */
+  const ZNAKI = 130;                                   // krócej = wcześniejsze ucięcie
+  document.querySelectorAll(".zajawka p > span").forEach(s => {
+    const pelny = s.textContent.trim();
+    if (pelny.length <= ZNAKI) return;
+    const doSpacji = pelny.slice(0, ZNAKI).lastIndexOf(" ");
+    const ciety = pelny.slice(0, doSpacji > 0 ? doSpacji : ZNAKI);
+    s.textContent = ciety.replace(/[\s,;:.!?—–-]+$/, "") + " ";
+    s.parentElement.append("…");                       // poza <span>, więc w kolorze akcentu
   });
 
   /* zdjęcie: dopóki nie ma pliku, zostaje przerywana ramka z nazwą pliku */

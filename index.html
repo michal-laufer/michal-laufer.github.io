@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Michał Laufer — Humanoid Robotics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* ===== KOLORY ===== */
+  :root {
+    --niebieski: #0B1E5B;
+    --tlo: #111111;
+    --fiolet: #3B0A6B;
+    --cyjan: #00E5FF;
+    --tekst: #E6E6EC;
+    --zielony: #CCFF00;          /* Experience: neonowy żółto-zielony */
+    --akcent-fiolet: #A04DFF;    /* Humanoid: ten sam odcień co #3B0A6B, rozjaśniony, żeby był czytelny */
+  }
+
+  /* kolor zakładki: płynnie zmienia się przy przełączaniu */
+  /* kolor akcentu zależny od zakładki (wszystko, co było cyjanowe) */
+  @property --akcent { syntax: "<color>"; inherits: true; initial-value: #A04DFF; }
+  body {
+    --akcent: var(--akcent-fiolet); --cyjan: var(--akcent);
+    /* kolor całej strony przechodzi w tym samym czasie, co kreska pod zakładkami */
+    transition: --akcent .45s cubic-bezier(.65,0,.35,1);
+  }
+  body[data-zakladka="experience"] { --akcent: var(--zielony); }
+  body[data-zakladka="locomotion"] { --akcent: var(--akcent-fiolet); }
+  body[data-zakladka="animation"]  { --akcent: #00E5FF; }
+
+  /* ===== STRONA: gradient + faktura ===== */
+  body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--tekst);
+    font-family: "Inter", system-ui, sans-serif;
+    line-height: 1.6;
+    background: var(--tlo);
+    position: relative;
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  }
+  /* kratka rysowana w <canvas id="kratka"> (JS) – z efektem rybiego oka */
+  :root { --kratka: 24px; }
+  #kratka { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
+  body::after {
+    background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.13) 100%);
+  }
+
+  section { padding: 80px 24px; }
+  .srodek { max-width: 1000px; margin: 0 auto; }
+  h1, h2 { color: var(--cyjan); font-family: "Space Grotesk", sans-serif; font-weight: 700; }
+  h1 { font-size: clamp(1.75rem, 4vw, 3rem); line-height: 1.05; margin: 0 0 16px; }
+
+
+
+  /* ===== "Laufer" przechodzi w szachownicę ===== */
+  .laufer { position: relative; display: inline-block; isolation: isolate; }
+
+  /* ===== POWITANIE wyśrodkowane ===== */
+  .powitanie { text-align: center; }
+  /* środkowa zakładka dokładnie na środku, boczne w równej odległości */
+  .powitanie .zakladki { display: grid; grid-template-columns: 1fr auto 1fr; column-gap: 32px; }
+  .powitanie .zakladka:first-of-type { justify-self: end; }
+  .powitanie .zakladka:nth-of-type(3) { justify-self: start; }
+
+  /* ===== całe UI powiększone o 50% (kratka, kursor i układ galerii bez zmian) ===== */
+  .powitanie .srodek, .wstep, #contact .srodek, footer,
+  .lewa, .opis, .doswiadczenie { zoom: 1.5; }
+  .kosci-na-linii .kosc svg { width: 150px; height: 48px; }   /* kości też +50% */
+
+  /* ===== ZAKŁADKI ===== */
+  .zakladki {
+    position: relative; display: flex; flex-wrap: wrap; gap: 32px;
+    margin-top: 40px; padding-bottom: 10px;
+    border-bottom: 1px solid rgba(230,230,236,0.15);
+  }
+  /* napis zakładki barwi się stopniowo, w tym samym tempie co kreska */
+  @property --wyp  { syntax: "<percentage>"; inherits: false; initial-value: 0%; }
+  @property --baza { syntax: "<color>"; inherits: false; initial-value: rgba(230,230,236,0.55); }
+  .zakladka {
+    background: none; border: 0; padding: 0;
+    font: 500 0.95rem "Space Grotesk", sans-serif;
+    --wyp: -10%; --baza: rgba(230,230,236,0.55);   /* nieaktywna: ani śladu koloru */
+    background-image: linear-gradient(var(--kier, 90deg),
+      var(--cyjan) 0 var(--wyp), var(--baza) calc(var(--wyp) + 9%) 100%);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent; -webkit-text-fill-color: transparent;
+    transition: --wyp .45s cubic-bezier(.65,0,.35,1), --baza .25s ease;
+  }
+  .zakladka:hover { --baza: var(--tekst); }
+  .zakladka[aria-selected="true"] { --wyp: 100%; }
+  @media (prefers-reduced-motion: reduce) { .zakladka { transition: none; } }
+  .krecha {
+    position: absolute; bottom: -1px; left: 0; height: 2px;
+    background: var(--cyjan);
+    transition: transform .45s cubic-bezier(.65,0,.35,1), width .45s cubic-bezier(.65,0,.35,1);
+  }
+  .widok[hidden] { display: none; }
+  .widoki { position: relative; }
+  .widoki.zmiana { overflow: hidden; }
+  .widok.stary { position: absolute; top: 0; left: 0; right: 0; z-index: 0; }
+  .widok.nowy  { position: relative; z-index: 1; }   /* bez tła – kratka zostaje widoczna */
+  .krecha-pion {
+    position: fixed; top: 0; bottom: 0; left: 0; width: 1px; z-index: 50;   /* przez cały ekran */
+    background: var(--cyjan); opacity: 0; pointer-events: none;
+  }
+
+
+  /* ===== WSTĘPNIAK ZAKŁADKI ===== */
+  .wstep { max-width: 640px; margin: 0 auto; padding: 72px 24px 48px; text-align: center; }
+  .programy {
+    list-style: none; padding: 0; margin: 0 0 32px;
+    /* trzy kolumny równej szerokości: środkowa ikona zawsze w centrum,
+       boczne w identycznej odległości (od środka do środka ikony) */
+    display: grid; grid-template-columns: repeat(3, 140px); justify-content: center; gap: 0;
+  }
+  .program { display: grid; justify-items: center; align-content: start; text-align: center; gap: 10px; font-size: 0.875rem; color: rgba(230,230,236,0.75); }
+  .program svg {
+    width: 44px; height: 44px; padding: 10px; box-sizing: border-box;
+    border: 1px solid color-mix(in srgb, var(--cyjan) 40%, transparent); border-radius: 50%;
+    color: var(--cyjan);
+  }
+  /* logotypy programów: oryginalne kolory, bez ramki i bez przebarwiania
+     (znaki towarowe wolno pokazywać tylko w niezmienionej postaci) */
+  .program img { width: 42px; height: 42px; object-fit: contain; display: block; }
+  .wstep p { margin: 0 auto; max-width: 56ch; }
+
+
+  /* ===== PASEK W PRAWYM GÓRNYM ROGU ===== */
+  .pasek-gora {
+    position: fixed; top: 26px; right: 32px; z-index: 60;
+    display: flex; align-items: center; gap: 12px;
+    transition: opacity .3s ease;
+  }
+  body.blokada .pasek-gora { opacity: 0; pointer-events: none; }   /* chowa się przy otwartym projekcie */
+  /* trzy osobne, ciasne prostokąty – napis bez zmian, ramka blisko liter */
+  .gorny, .jezyki {
+    height: 34px; box-sizing: border-box;
+    border: 1px solid rgba(230,230,236,0.2);
+    background: color-mix(in srgb, var(--tlo) 60%, transparent);
+    transition: color .25s ease, border-color .25s ease, background .25s ease;
+  }
+  .gorny {
+    display: grid; place-items: center; padding: 0 13px;
+    font: 500 0.9rem "Space Grotesk", sans-serif; letter-spacing: .06em;
+    color: rgba(230,230,236,0.6);
+  }
+  .gorny:hover { color: var(--tekst); border-color: var(--cyjan); }
+  .przegroda { display: none; }
+  .jezyki { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 0 11px; }
+  .jezyki:hover { border-color: var(--cyjan); }
+  .jez {
+    background: none; border: 0; padding: 0;
+    font: 500 0.72rem "Space Grotesk", sans-serif;
+    color: rgba(230,230,236,0.5); transition: color .25s ease;
+  }
+  .jez:hover { color: var(--tekst); }
+  .jez.wybrany { color: var(--cyjan); }
+  .jez-sep { font-size: 0.72rem; color: rgba(230,230,236,0.25); }
+  #btn-cv { color: var(--cyjan); border-color: color-mix(in srgb, var(--cyjan) 45%, transparent); }
+  #btn-cv:hover { background: var(--cyjan); color: var(--tlo); border-color: var(--cyjan); }
+  @media (max-width: 700px) {
+    .pasek-gora { top: 14px; right: 14px; gap: 8px; }
+    .gorny, .jezyki { height: 30px; }
+    .gorny { padding: 0 10px; font-size: 0.78rem; }
+    .jezyki { padding: 0 9px; }
+  }
+
+  /* ===== ABOUT ME ===== */
+  .omnie {
+    position: fixed; inset: 0; z-index: 90;
+    background: color-mix(in srgb, var(--tlo) 94%, transparent);
+    backdrop-filter: blur(6px);
+    display: grid; place-items: center; padding: 32px;
+    opacity: 0; pointer-events: none; transition: opacity .45s ease;
+  }
+  .omnie.otwarte { opacity: 1; pointer-events: auto; }
+  .omnie-srodek {
+    max-width: 860px; width: 100%;
+    display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 48px; align-items: center;
+  }
+  .omnie-tekst h2 { margin: 0 0 16px; font-size: clamp(1.3rem, 2.4vw, 1.9rem); }
+  .omnie-tekst p { margin: 0; max-width: 54ch; font-size: 0.95rem; line-height: 1.75; color: rgba(230,230,236,0.78); }
+  .omnie-zamknij {
+    position: fixed; top: 20px; right: 24px; z-index: 91;
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--tlo); border: 1px solid var(--cyjan); color: var(--cyjan);
+    font: 300 28px/1 "Inter", sans-serif; display: grid; place-items: center;
+  }
+  @media (max-width: 700px) {
+    .omnie-srodek { grid-template-columns: 1fr; gap: 26px; justify-items: center; text-align: center; }
+    .omnie-tekst p { margin: 0 auto; }
+  }
+  .portret {
+    margin: 0; position: relative; aspect-ratio: 4 / 5; overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--cyjan) 35%, transparent);
+  }
+  .portret img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    filter: grayscale(1) contrast(1.05); transition: filter .6s ease;   /* kolor dopiero po najechaniu */
+  }
+  .portret:hover img { filter: none; }
+  .portret.brak {                                   /* dopóki nie ma pliku foto.jpg */
+    border-style: dashed; border-color: rgba(230,230,236,0.25);
+    display: grid; place-items: center;
+  }
+  .portret.brak img { display: none; }
+  .portret.brak::after {
+    content: "foto.jpg"; font: 400 0.75rem "Space Grotesk", sans-serif;
+    letter-spacing: .1em; color: rgba(230,230,236,0.35);
+  }
+  @media (max-width: 700px) { .portret { width: 190px; } }
+
+  /* ===== EXPERIENCE: oś czasu ===== */
+  .doswiadczenie { max-width: 720px; margin: 0 auto; padding: 72px 24px 104px; }
+  .os { list-style: none; margin: 0; padding: 0; position: relative; }
+  .os::before {                                   /* pionowa linia osi */
+    content: ""; position: absolute; left: 7px; top: 14px; bottom: 14px; width: 1px;
+    background: linear-gradient(to bottom,
+      color-mix(in srgb, var(--cyjan) 55%, transparent), rgba(230,230,236,0.10));
+  }
+  .praca { position: relative; padding: 0 0 52px 40px; }
+  .praca:last-child { padding-bottom: 0; }
+  .praca::before {                                /* kropka na osi */
+    content: ""; position: absolute; left: 0; top: 8px;
+    width: 15px; height: 15px; box-sizing: border-box; border-radius: 50%;
+    border: 1px solid var(--cyjan); background: var(--tlo);
+    box-shadow: 0 0 0 5px var(--tlo), 0 0 18px color-mix(in srgb, var(--cyjan) 40%, transparent);
+    transition: background .3s ease;
+  }
+  .praca.teraz::before { background: var(--cyjan); }    /* obecne stanowisko: kropka wypełniona */
+  .rola { font: 700 clamp(1.1rem, 2vw, 1.4rem)/1.2 "Space Grotesk", sans-serif; color: var(--tekst); margin: 0; }
+  .firma { margin: 7px 0 0; font-size: 0.95rem; font-weight: 500; color: var(--cyjan); }
+  .firma .sep { color: rgba(230,230,236,0.3); margin: 0 9px; font-weight: 300; }
+  .firma .tryb { color: rgba(230,230,236,0.6); font-weight: 400; }
+  .okres {
+    margin: 6px 0 0; font: 400 0.75rem "Space Grotesk", sans-serif;
+    letter-spacing: .1em; text-transform: uppercase; color: rgba(230,230,236,0.42);
+  }
+  .zadania { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 11px; }
+  .zadania li {
+    position: relative; padding-left: 24px;
+    font-size: 0.92rem; line-height: 1.6; color: rgba(230,230,236,0.78);
+  }
+  .zadania li::before {                           /* myślnik zamiast punktora */
+    content: ""; position: absolute; left: 0; top: 0.63em;
+    width: 11px; height: 1px; background: var(--cyjan); opacity: .75;
+  }
+  @media (max-width: 600px) {
+    .praca { padding-left: 30px; padding-bottom: 40px; }
+    .firma .sep { margin: 0 6px; }
+  }
+
+  /* ===== GALERIA: filmy 1-2-3 ===== */
+  .galeria { height: calc(var(--n, 3) * 150vh); padding: 0; }   /* JS liczy filmy; 150vh = odstęp między projektami */
+  .przyklejone { position: sticky; top: 0; height: 100vh; overflow: hidden; }
+  /* zakładka Locomotion: dłuższy odstęp między projektami */
+  #projects { height: calc(var(--n, 3) * 220vh); }
+  .warstwa {
+    position: absolute; inset: 0;
+    background: var(--tlo);
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);   /* długie nazwy nie ściskają filmu */
+    align-content: center; align-items: stretch;
+    gap: 32px; padding: 0 24px;
+  }
+  /* boczne kolumny nie podnoszą wiersza – o wysokości decyduje tylko film,
+     dzięki czemu każdy film stoi dokładnie w tym samym miejscu ekranu */
+  .lewa { align-self: start; height: 0; }
+  .nazwa { font-size: clamp(1.5rem, 2.8vw, 2.6rem); line-height: 1.05; margin: 0; hyphens: auto; overflow-wrap: break-word; }
+  .tech {
+    list-style: none; padding: 0; margin: 16px 0 0;
+    font-size: 0.875rem; color: rgba(230,230,236,0.6);
+  }
+  .tech li { padding: 4px 0; border-top: 1px solid rgba(230,230,236,0.15); }
+  .opis { margin: 0; align-self: end; }
+
+  .film { position: relative; }           /* punkt odniesienia dla kości i "?" */
+  .okno { aspect-ratio: 16 / 9; overflow: hidden; background: var(--niebieski); }
+  .okno video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* miniatura z YouTube w małym kwadracie (gdy projekt nie ma pliku .mp4) */
+  .okno img.plakat { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .linia {
+    position: absolute; left: 0; right: 0; height: 1px;
+    background: rgba(230,230,236,0.4); pointer-events: none;
+  }
+
+  /* ===== KOŚCI pod filmem 2, zgarniane przez kreskę filmu 3 ===== */
+  .kosci-na-linii {
+    position: absolute; left: 0; right: 0; height: 0; top: 100%;
+    display: flex; justify-content: center; align-items: flex-end; gap: 24px;
+    pointer-events: none;
+  }
+  .kosci-scena { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  .kosc { color: var(--cyjan); transform: rotate(var(--obrot)); transform-origin: bottom center; }
+  .kosc svg {
+    display: block; width: 100px; height: 32px;
+    transform-origin: bottom center;
+    animation: skok 3s infinite;
+    animation-delay: var(--opoznienie);
+  }
+  @keyframes skok {
+    0%, 60% { transform: translateY(0) rotate(0); animation-timing-function: cubic-bezier(0.2,0.8,0.3,1); }
+    66% { transform: translateY(-40px) rotate(var(--przechyl)); animation-timing-function: cubic-bezier(0.55,0,1,0.45); }
+    74% { transform: translateY(0) rotate(0); animation-timing-function: cubic-bezier(0.2,0.8,0.3,1); }
+    78% { transform: translateY(-10px) rotate(calc(var(--przechyl) * -0.4)); animation-timing-function: cubic-bezier(0.55,0,1,0.45); }
+    82% { transform: translateY(0) rotate(0); animation-timing-function: cubic-bezier(0.2,0.8,0.3,1); }
+    84% { transform: translateY(-3px) rotate(0); animation-timing-function: cubic-bezier(0.55,0,1,0.45); }
+    86%, 100% { transform: translateY(0) rotate(0); }
+  }
+
+
+  /* ===== słowo "solve" skacze w rytm jointów, słabiej ===== */
+  .podskok {
+    display: inline-block; color: var(--cyjan);
+    transform-origin: bottom center;
+    animation: skok-slabszy 3s infinite;
+  }
+  @keyframes skok-slabszy {
+    0%, 60% { transform: translateY(0); animation-timing-function: cubic-bezier(0.2,0.8,0.3,1); }
+    66% { transform: translateY(-12px) rotate(-3deg); animation-timing-function: cubic-bezier(0.55,0,1,0.45); }
+    74% { transform: translateY(0); animation-timing-function: cubic-bezier(0.2,0.8,0.3,1); }
+    78% { transform: translateY(-3px) rotate(1deg); animation-timing-function: cubic-bezier(0.55,0,1,0.45); }
+    82% { transform: translateY(0); animation-timing-function: cubic-bezier(0.2,0.8,0.3,1); }
+    84% { transform: translateY(-1px); animation-timing-function: cubic-bezier(0.55,0,1,0.45); }
+    86%, 100% { transform: translateY(0); }
+  }
+
+
+  /* ===== ZAJAWKA pod filmem: tekst zanika, nad nim strzałki VVV ===== */
+  .warstwa { padding-bottom: 160px; }          /* cały wiersz z filmem lekko wyżej */
+  .zajawka {
+    position: absolute; top: calc(100% + 20px); left: 0; right: 0;
+    text-align: center;
+  }
+  .zajawka { height: 92px; }                 /* stała wysokość: VVV zawsze w tej samej odległości od filmu */
+  .zajawka p {
+    height: 92px; overflow: hidden;
+    margin: 0 auto; max-width: 52ch;
+    font-size: 1.1rem; line-height: 1.6; color: rgba(230,230,236,0.8);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,0.6) 40%, transparent 90%);
+            mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,0.6) 40%, transparent 90%);
+  }
+  .strzalki-dol {
+    position: absolute; left: 50%; bottom: -4px; transform: translateX(-50%);
+    width: 42px; height: 24px; color: var(--cyjan);
+  }
+
+
+  /* ===== ROZWINIĘCIE PROJEKTU (po kliknięciu zajawki) ===== */
+  .zajawka { cursor: none; }
+  .zajawka:focus-visible { outline: 2px solid var(--cyjan); outline-offset: 6px; }
+  .rozwiniecie {
+    position: fixed; inset: 0; z-index: 100;
+    background: var(--tlo);
+    overflow-y: auto; overscroll-behavior: contain;   /* przewija się tylko wnętrze, strona stoi */
+    opacity: 0; pointer-events: none;
+  }
+  .rozwiniecie.otwarte { pointer-events: auto; }
+  /* rozwinięcie przewija się, gdy treść nie mieści się na ekranie */
+  .r-srodek {
+    min-height: 100vh; box-sizing: border-box; padding: 56px 32px 48px;
+    display: grid; grid-template-rows: auto 1fr; gap: 32px;
+  }
+  .r-gora {
+    display: grid; grid-template-columns: 1fr auto 1fr; gap: 32px; align-items: stretch;
+  }
+  .r-film {
+    width: min(58vw, calc(56vh * 16 / 9));          /* film lekko mniejszy */
+    aspect-ratio: 16 / 9; overflow: hidden; background: var(--niebieski); transform-origin: top left;
+  }
+  .r-film video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* odtwarzacz YouTube w rozwinięciu */
+  .r-film iframe { width: 100%; height: 100%; border: 0; display: block; }
+  .r-film video[hidden] { display: none; }
+  .r-lewa { align-self: start; }
+  .r-prawa { align-self: end; }
+  .r-lewa h2 { margin: 0; font-size: clamp(1.4rem, 2.2vw, 2.2rem); line-height: 1.05; }
+  .r-tech { list-style: none; padding: 0; margin: 12px 0 0; font-size: 0.85rem; color: rgba(230,230,236,0.6); }
+  .r-tech li { padding: 4px 0; border-top: 1px solid rgba(230,230,236,0.15); }
+  .r-prawa p { margin: 0; font-size: 0.95rem; line-height: 1.6; color: rgba(230,230,236,0.85); }
+  .r-tresc, .r-boki { opacity: 0; }
+  .r-dol { min-height: 0; display: grid; grid-template-rows: auto 1fr; gap: 12px; }
+  .r-dol h3 { font: 600 0.8rem "Space Grotesk", sans-serif; letter-spacing: .08em; text-transform: uppercase; color: rgba(230,230,236,0.5); margin: 0; }
+  .r-siatka { min-height: 0; display: flex; justify-content: center; gap: 16px; }
+  .r-miejsce {
+    height: 100%; max-height: 22vh; aspect-ratio: 16 / 9; display: grid; place-items: center;
+    border: 1px dashed rgba(230,230,236,0.25); color: rgba(230,230,236,0.4); font-size: 0.85rem;
+  }
+  .r-dol .r-notka { margin: 0; text-align: center; font-size: 0.9rem; color: rgba(230,230,236,0.6); }
+  /* ===== ROZWINIĘCIE: łańcuch pipeline + referencja + fakty ===== */
+  .r-lancuch { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; margin: 0 auto 28px; max-width: 1100px; }
+  .r-lancuch span { font-size: 0.74rem; letter-spacing: .07em; text-transform: uppercase; color: rgba(230,230,236,0.62); border: 1px solid rgba(230,230,236,0.18); padding: 5px 10px; white-space: nowrap; }
+  .r-lancuch i { font-style: normal; color: var(--cyjan); opacity: .55; font-size: 0.8rem; }
+  .r-dwa { min-height: 0; display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 40px; max-width: 1100px; margin: 0 auto; align-items: start; }
+  .r-ref { margin: 0; position: sticky; top: 0; }
+  .r-ref .okno-ref { aspect-ratio: 16 / 9; overflow: hidden; background: var(--niebieski); border: 1px solid rgba(230,230,236,0.15); }
+  .r-ref .okno-ref video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .r-ref figcaption { margin-top: 8px; font-size: 0.74rem; letter-spacing: .07em; text-transform: uppercase; color: rgba(230,230,236,0.42); }
+  .r-fakty { display: grid; gap: 0; align-content: start; counter-reset: fakt; }
+  .r-fakty .fakt { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 0 12px; padding: 14px 0; border-top: 1px solid rgba(230,230,236,0.12); }
+  .r-fakty .fakt:first-child { border-top: 0; padding-top: 0; }
+  .r-fakty .fakt::before { counter-increment: fakt; content: counter(fakt, decimal-leading-zero); font: 600 0.72rem "Space Grotesk", sans-serif; color: var(--cyjan); opacity: .7; padding-top: 3px; }
+  .r-fakty h4 { margin: 0 0 4px; font-size: 0.95rem; font-family: "Space Grotesk", sans-serif; font-weight: 500; color: rgba(230,230,236,0.95); }
+  .r-fakty p { margin: 0; font-size: 0.86rem; line-height: 1.55; color: rgba(230,230,236,0.72); }
+  .r-fakty .fakt.wynik h4 { color: var(--cyjan); }
+  @media (max-width: 800px) { .r-dwa { grid-template-columns: 1fr; gap: 24px; } .r-ref { position: static; } }
+  /* dwa rozwinięcia obok siebie, pod filmem */
+  .r-rozwoje { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; max-width: 900px; margin: 0 auto; }
+  .r-rozwoje h3 { margin: 0 0 8px; }
+  .r-rozwoje p { margin: 0; font-size: 0.9rem; line-height: 1.65; color: rgba(230,230,236,0.75); }
+  @media (max-width: 800px) { .r-rozwoje { grid-template-columns: 1fr; gap: 20px; } }
+  @media (max-width: 800px) {
+    .r-gora { grid-template-columns: 1fr; }
+    .r-film { width: 100%; }
+    .rozwiniecie { overflow-y: auto; }
+    .r-srodek { height: auto; }
+  }
+  .r-zamknij {
+    position: fixed; top: 20px; right: 24px; z-index: 101;
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--tlo); border: 1px solid var(--cyjan); color: var(--cyjan);
+    font: 300 28px/1 "Inter", sans-serif; display: grid; place-items: center;
+    opacity: 0; pointer-events: none;
+  }
+  .rozwiniecie.otwarte ~ .r-zamknij { opacity: 1; pointer-events: auto; }
+
+
+  /* druga część nazwy (np. klient) – mniejsza, w nowej linii */
+  .nazwa-dop { display: block; font-size: 0.55em; margin-top: 6px; letter-spacing: .02em; }
+  /* data projektu: ciemniejsza, bez kreski */
+  .tech li.data, .r-tech li.data { border-top: 0; padding-top: 0; color: rgba(230,230,236,0.38); font-weight: 300; }
+  .r-link {
+    display: inline-block; margin-top: 12px; font-size: 0.9rem;
+    color: rgba(230,230,236,0.7); text-decoration: none; border-bottom: 1px solid rgba(230,230,236,0.25);
+  }
+  .r-link:hover { color: var(--cyjan); border-color: var(--cyjan); }
+  .r-link[hidden] { display: none; }
+  .r-srodkowa { display: flex; flex-direction: column; align-items: flex-start; }
+
+  /* ===== ZNAK ZAPYTANIA obok filmu 3 ===== */
+  .pytanie {
+    position: absolute; top: 50%; left: calc(100% + 16px); transform: translateY(-50%);
+    width: 24px; height: 42px; padding: 0;
+    background: none; border: 0; color: var(--cyjan);
+  }
+  .pytanie svg { display: block; width: 24px; height: 42px; }
+  .pytanie .dymek {
+    position: absolute; top: 36px; left: 0; width: 200px;
+    padding: 10px 12px; background: var(--fiolet); color: var(--tekst);
+    font: 400 0.8rem/1.4 "Inter", sans-serif; text-align: left;
+    opacity: 0; transform: translateY(-4px); pointer-events: none;
+    transition: opacity .2s, transform .2s;
+  }
+  .pytanie:hover .dymek, .pytanie:focus-visible .dymek { opacity: 1; transform: none; }
+
+  /* ===== KURSOR-JOINT ===== */
+  .kursor {
+    position: fixed; top: 0; left: 0;
+    width: 30px; height: 30px; margin: -15px 0 0 -15px;   /* rozmiar w spoczynku */
+    pointer-events: none; z-index: 9999; perspective: 300px;
+  }
+  .joint { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; }
+  .pierscien { position: absolute; inset: 0; border: 1.5px solid var(--cyjan); border-radius: 50%; }
+  .yz { transform: rotateY(90deg); }
+  .xz { transform: rotateX(90deg); }
+  body, a, button { cursor: none; }
+
+  footer { padding: 32px 24px; text-align: center; color: rgba(230,230,236,0.6); font-size: 0.875rem; }
+
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--cyjan); outline-offset: 3px; }
+
+  /* ===== TELEFON ===== */
+  @media (hover: none) {
+    .kursor { display: none; }
+    body, a, button { cursor: auto; }
+  }
+  @media (max-width: 800px) {
+    .warstwa { grid-template-columns: 1fr; align-content: center; gap: 16px; }
+    .pytanie { left: auto; right: 8px; top: 8px; transform: none; }
+    .warstwa { padding-bottom: 0; }
+    .zajawka { position: relative; top: auto; margin-top: 16px; }
+    .pytanie .dymek { left: auto; right: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .kosc svg, .podskok { animation: none; }
+  }
+</style>
+</head>
+<body data-zakladka="locomotion">
+<canvas id="kratka" aria-hidden="true"></canvas>
+<div class="krecha-pion" id="krechaPion" aria-hidden="true"></div>
+
+<!-- kursor -->
+<div class="kursor" id="kursor">
+  <div class="joint" id="joint">
+    <div class="pierscien"></div>
+    <div class="pierscien yz"></div>
+    <div class="pierscien xz"></div>
+  </div>
+</div>
+
+<!-- wzór kości (niewidoczny, używany przez <use>) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="kosc" viewBox="0 0 124 40">
+    <g fill="none" stroke="currentColor" stroke-width="1.2">
+      <circle cx="14" cy="20" r="12"/><ellipse cx="14" cy="20" rx="12" ry="4"/><ellipse cx="14" cy="20" rx="4" ry="12"/>
+      <line x1="14" y1="8" x2="102" y2="20"/><line x1="14" y1="32" x2="102" y2="20"/><line x1="26" y1="22" x2="102" y2="20"/>
+      <circle cx="110" cy="20" r="8"/><ellipse cx="110" cy="20" rx="8" ry="3"/><ellipse cx="110" cy="20" rx="3" ry="8"/>
+    </g>
+  </symbol>
+  <symbol id="ik-kod" viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ik-kostka" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zM12 12l8-4.5M12 12v9M12 12L4 7.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+  <symbol id="ik-zebatka" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="ik-kamera" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M16 10l5-3v10l-5-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+  <symbol id="ik-postac" viewBox="0 0 24 24"><circle cx="12" cy="4.6" r="2.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 6.8v6.5M12 9.3L7.5 11.7M12 9.3l4.5 2.4M12 13.3l-3.4 5.9M12 13.3l3.4 5.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ik-teczka" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9 7V5h6v2M3 12h18" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+</svg>
+
+<!-- ===== PASEK W PRAWYM GÓRNYM ROGU ===== -->
+<div class="pasek-gora" id="pasekGora">
+  <button class="gorny" id="btn-about" type="button" aria-haspopup="dialog">About me</button>
+  <span class="przegroda" aria-hidden="true"></span>
+  <div class="jezyki" role="group" aria-label="Language">
+    <!-- JĘZYK: na razie sam przełącznik, bez tłumaczenia treści -->
+    <button class="jez wybrany" type="button" data-jezyk="en" aria-pressed="true">EN</button>
+    <span class="jez-sep" aria-hidden="true">/</span>
+    <button class="jez" type="button" data-jezyk="zh" aria-pressed="false">中文</button>
+  </div>
+  <span class="przegroda" aria-hidden="true"></span>
+  <!-- CV: żeby podpiąć plik, zamień na <a class="gorny" href="cv.pdf" download>CV ↓</a> -->
+  <button class="gorny" id="btn-cv" type="button">CV ↓</button>
+</div>
+
+<!-- ===== ABOUT ME ===== -->
+<div class="omnie" id="omnie" role="dialog" aria-modal="true" aria-labelledby="omnie-tytul" aria-hidden="true">
+  <div class="omnie-srodek">
+    <!-- ZDJĘCIE: wrzuć plik foto.jpg obok index.html (kadr pionowy, ok. 4:5) -->
+    <figure class="portret"><img src="foto.jpg" alt="Michał Laufer"></figure>
+    <div class="omnie-tekst">
+      <h2 id="omnie-tytul">About me</h2>
+      <p>My background in 3D animation is a working foundation in body mechanics, skeletal structures, kinematics and motion representation. I now spend my time with motion data and skeletal datasets, on how human movement can be processed, represented and applied within robotic systems. My interests run through humanoid robotics, motion data pipelines, locomotion, simulation and robot learning — animation-based understanding of movement, with an expanding technical foundation underneath it.</p>
+    </div>
+  </div>
+  <button class="omnie-zamknij" id="omnie-zamknij" type="button" aria-label="Close">×</button>
+</div>
+
+<section class="powitanie">
+  <div class="srodek">
+    <h1>Michał <span class="laufer">Laufer</span></h1>
+    <p>I bring an animator's understanding of movement to humanoid robotics.</p>
+    <div class="zakladki" role="tablist" aria-label="Portfolio">
+      <button class="zakladka" role="tab" id="tab-experience" aria-controls="experience" aria-selected="false">Experience</button>
+      <button class="zakladka" role="tab" id="tab-locomotion" aria-controls="locomotion" aria-selected="true">Humanoid Robot Locomotion</button>
+      <button class="zakladka" role="tab" id="tab-animation" aria-controls="animation" aria-selected="false">3D Animation</button>
+      <span class="krecha" id="krecha"></span>
+    </div>
+  </div>
+</section>
+
+<div class="widoki" id="widoki">
+<div class="widok" id="experience" role="tabpanel" aria-labelledby="tab-experience" hidden>
+  <!-- ===== OŚ CZASU: skopiuj cały blok <li class="praca">, żeby dodać kolejne stanowisko ===== -->
+  <section class="doswiadczenie">
+    <ol class="os">
+
+      <li class="praca teraz">
+        <h2 class="rola">Junior Motion Capture Editor</h2>
+        <p class="firma">Bones Studio<span class="sep">·</span><span class="tryb">Full-time · Remote</span></p>
+        <p class="okres">Mar 2026 — Present · 9 mo</p>
+        <ul class="zadania">
+          <li>Co-developed an internal tool, shaped by both my own experience and the team's actual needs</li>
+          <li>Wrote scripts to take the load off the most tedious and problematic parts of the pipeline</li>
+          <li>Revived legacy files and their skeletons</li>
+          <li>Handled genuinely difficult sessions built around heavily occluded markers</li>
+        </ul>
+      </li>
+
+      <li class="praca">
+        <h2 class="rola">3D Animator</h2>
+        <p class="firma">Motion Buddies<span class="sep">·</span><span class="tryb">Freelance · Remote</span></p>
+        <p class="okres">Sep 2024 — Jun 2026 · 1 yr 10 mo</p>
+        <ul class="zadania">
+          <li>Animated custom MetaHuman characters, focusing on body acting and facial expressiveness</li>
+          <li>Planned scene layouts and camera angles for stronger cinematic storytelling</li>
+          <li>Built animation blockouts for key sequences, setting timing and poses</li>
+          <li>Worked with a second animator to keep shots consistent and smoothly integrated</li>
+          <li>Refined shots on senior animator feedback, raising overall quality</li>
+          <li>Brought my own creative input to character performance and shot feel</li>
+        </ul>
+      </li>
+
+    </ol>
+  </section>
+</div>
+
+<div class="widok" id="locomotion" role="tabpanel" aria-labelledby="tab-locomotion">
+  <section class="wstep">
+    <ul class="programy">
+      <li class="program"><svg aria-hidden="true"><use href="#ik-postac"/></svg>Unitree G1</li>
+      <li class="program"><svg aria-hidden="true"><use href="#ik-kod"/></svg>Python</li>
+      <li class="program"><svg aria-hidden="true"><use href="#ik-kostka"/></svg>mjlab · MuJoCo Warp</li>
+    </ul>
+    <p>I take a phone recording of a person doing physical work and turn it into a policy that performs the same task on a Unitree G1 in simulation. The interesting part is not the walking — it is everything the body does while carrying, swinging or placing something, where contact decides whether the motion <span style="white-space:nowrap"><span class="podskok">holds</span>.</span></p>
+  </section>
+<section class="galeria" id="projects">
+  <div class="przyklejone">
+
+    <!-- PROJEKT 1: DRABINA -->
+    <div class="warstwa">
+      <div class="lewa">
+        <h2 class="nazwa">Ladder</h2>
+        <ul class="tech"><li>Unitree G1 · Dex3 hands</li><li>18 s single motion</li><li class="data">mjlab · MuJoCo Warp · PPO</li></ul>
+      </div>
+      <div class="film">
+        <!-- wideo referencyjne: podmień src na swój plik -->
+        <div class="okno"><video src="drabina.mp4" autoplay muted loop playsinline></video></div>
+        <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
+          <p>The ladder has a hinge, so the object changes shape during the task — the robot manipulates it and then has to stand on something it unfolded itself. Across 18 seconds of continuous motion, errors from the early phases compound into the later ones.</p>
+          <svg class="strzalki-dol" viewBox="0 0 42 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9,1 21,7 33,1"/><polyline points="9,9 21,15 33,9"/><polyline points="9,17 21,23 33,17"/>
+          </svg>
+        </div>
+      </div>
+      <p class="opis">The G1 carries a ladder, unfolds it, climbs up, comes back down, folds it and carries it away — one continuous motion taken from a human recording.</p>
+      <!-- SZCZEGÓŁY tego projektu (widoczne po kliknięciu zajawki) -->
+      <template class="szczegoly">
+        <div class="r-lancuch"><span>GVHMR</span> <i>→</i> <span>GMR</span> <i>→</i> <span>my ladder + finger scripts</span> <i>→</i> <span>mjlab · PPO</span></div>
+        <div class="r-dwa">
+          <figure class="r-ref">
+            <div class="okno-ref"><video src="drabina-ref.mp4" autoplay muted loop playsinline></video></div>
+          </figure>
+          <div class="r-fakty">
+            <div class="fakt"><div><h4>A hinged object you then stand on</h4><p>Two sections on one 0–40° hinge, platform coupled by constraint. A push unfolds it, lifting lets gravity fold it back.</p></div></div>
+            <div class="fakt"><div><h4>Object reward, no contact reward</h4><p>Pose and hinge angle tracked to 5 cm / 10° while the ladder stands. While it moves, only direction of displacement counts.</p></div></div>
+            <div class="fakt"><div><h4>Four experts stitched into one motion</h4><p>Carry-unfold, climb, descend, fold-carry at 50 Hz, blended over 10 frames, then PPO fine-tuning with BC regularisation so the earlier phases survive. ResMimic curriculum: 20 N guiding force annealed to zero.</p></div></div>
+            <div class="fakt"><div><h4>Failures located frame by frame</h4><p>The left foot caught the platform edge, so shin contact with that rung became its own penalty.</p></div></div>
+            <div class="fakt wynik"><div><h4>Result</h4><p>[X]% full-motion success over [N] episodes, most common failure [phase]. One motion, one ladder.</p></div></div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- PROJEKT 2: KILOF + kości na kresce -->
+    <div class="warstwa">
+      <div class="lewa">
+        <h2 class="nazwa">Pickaxe</h2>
+        <ul class="tech"><li>Two-handed Dex3 grip</li><li>2.1 s swing cycle</li><li class="data">4800 parallel envs · PPO</li></ul>
+      </div>
+      <div class="film">
+        <!-- wideo referencyjne: podmień src na swój plik -->
+        <div class="okno"><video src="kilof.mp4" autoplay muted loop playsinline></video></div>
+        <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
+          <p>The tool is a free body held by nothing but contact forces. Every strike into the ground is an impulse that can knock the pickaxe straight out of the hands, so the grip has to survive the motion rather than be assumed by it.</p>
+          <svg class="strzalki-dol" viewBox="0 0 42 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9,1 21,7 33,1"/><polyline points="9,9 21,15 33,9"/><polyline points="9,17 21,23 33,17"/>
+          </svg>
+        </div>
+      </div>
+      <p class="opis">The G1 digs with a physical pickaxe, held in both Dex3 hands, from a motion recorded off a person.</p>
+      <!-- SZCZEGÓŁY tego projektu (widoczne po kliknięciu zajawki) -->
+      <template class="szczegoly">
+        <div class="r-lancuch"><span>[tool]</span> <i>→</i> <span>Maya</span> <i>→</i> <span>Blender</span> <i>→</i> <span>GMR</span> <i>→</i> <span>mjlab · 4800 envs</span></div>
+        <div class="r-dwa">
+          <figure class="r-ref">
+            <div class="okno-ref"><video src="kilof-ref.mp4" autoplay muted loop playsinline></video></div>
+          </figure>
+          <div class="r-fakty">
+            <div class="fakt"><div><h4>The tool is invisible to the policy</h4><p>A 0.715 kg free body with no observation of it. Keeping hold of it falls out of the learned motion, not out of being glued to the hand.</p></div></div>
+            <div class="fakt"><div><h4>Grip solved, not posed</h4><p>Optimised Dex3 pose where every finger segment touches the Ø35 mm shaft without penetrating it. Gaps under 4 mm, right hand mirrored.</p></div></div>
+            <div class="fakt"><div><h4>Rewards describe the task, not the pose</h4><p>Blade into the ground inside the strike window, with bonuses for swing height, shaft overhead and blade down. Penalties for shaft hits, head jerk and the hand sliding off.</p></div></div>
+            <div class="fakt"><div><h4>Naturalness came from watching it back</h4><p>Each run reviewed, then a penalty written for the specific cheat it found — wrist past 30°, right arm flared, forearm inverted.</p></div></div>
+            <div class="fakt wynik"><div><h4>Result</h4><p>[X strikes per cycle, pickaxe retained in Y% of episodes]. Fingers stay locked in the grip pose, so this is a passive hold rather than dexterous manipulation.</p></div></div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- PROJEKT 3: CEGŁY -->
+    <div class="warstwa">
+      <div class="lewa">
+        <h2 class="nazwa">Bricks</h2>
+        <ul class="tech"><li>4 bricks · 0.5 kg each</li><li>17-joint IK</li><li class="data">Reference and env ready</li></ul>
+      </div>
+      <div class="film">
+        <!-- wideo: na razie referencja kinematyczna, nie trening w fizyce -->
+        <div class="okno"><video src="cegly.mp4" autoplay muted loop playsinline></video></div>
+        <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
+          <p>In the source recording the person is carrying something else entirely, so there are no bricks in the data at all. The objects, their trajectories and the grip had to be built from scratch — and built so that they remain physically executable.</p>
+          <svg class="strzalki-dol" viewBox="0 0 42 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9,1 21,7 33,1"/><polyline points="9,9 21,15 33,9"/><polyline points="9,17 21,23 33,17"/>
+          </svg>
+        </div>
+        <button class="pytanie" type="button" aria-label="More info">
+          <svg viewBox="0 0 24 42" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1,9 7,21 1,33"/><polyline points="9,9 15,21 9,33"/><polyline points="17,9 23,21 17,33"/>
+          </svg>
+          <span class="dymek">The clip shows the kinematic reference, not a trained policy — physics training is the next step.</span>
+        </button>
+      </div>
+      <p class="opis">The G1 carries four bricks in pairs and lays them in an even row, reconstructed from a single phone recording.</p>
+      <!-- SZCZEGÓŁY tego projektu (widoczne po kliknięciu zajawki) -->
+      <template class="szczegoly">
+        <div class="r-lancuch"><span>GVHMR</span> <i>→</i> <span>GMR</span> <i>→</i> <span>object + grip reconstruction</span> <i>→</i> <span>mjlab · RL in progress</span></div>
+        <div class="r-dwa">
+          <figure class="r-ref">
+            <div class="okno-ref"><video src="cegly-ref.mp4" autoplay muted loop playsinline></video></div>
+            <figcaption>Kinematic reference, not a trained policy</figcaption>
+          </figure>
+          <div class="r-fakty">
+            <div class="fakt"><div><h4>There are no bricks in the source data</h4><p>The person on the recording carries something else entirely, so objects, trajectories and grip were built from scratch — and built to stay physically executable.</p></div></div>
+            <div class="fakt"><div><h4>Objects derived from the hands</h4><p>Brick size and placement taken from the grasp points, the line of the row fitted with PCA. Top grip optimised to 0 mm contact, waist and both arms solved with 17-joint IK against the brick.</p></div></div>
+            <div class="fakt"><div><h4>Motion smoothed on purpose</h4><p>Minimum-jerk transitions and Hermite splines, with jerk-penalised smoothing inside the grasp windows. Peak joint acceleration fell from 12.3 to 8.5 °/frame².</p></div></div>
+            <div class="fakt wynik"><div><h4>Status</h4><p>Reference and environment are done — 0.5 kg bricks, a drop ends the episode, 10° placement tolerance. Training in physics is next.</p></div></div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <div class="linia"></div>
+    <div class="kosci-scena" id="kosciScena">
+    <div class="kosci-na-linii" id="kosciLinia" aria-hidden="true">
+      <div class="kosc" style="--opoznienie:0s;    --obrot:-8deg; --przechyl:6deg"><svg><use href="#kosc"/></svg></div>
+      <div class="kosc" style="--opoznienie:0.05s; --obrot:5deg;  --przechyl:-9deg"><svg><use href="#kosc"/></svg></div>
+      <div class="kosc" style="--opoznienie:0.1s;  --obrot:-3deg; --przechyl:4deg"><svg><use href="#kosc"/></svg></div>
+    </div>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<div class="widok" id="animation" role="tabpanel" aria-labelledby="tab-animation" hidden>
+  <section class="wstep">
+    <ul class="programy">
+      <!-- logotypy: wrzuć pliki do folderu logo/ obok index.html -->
+      <li class="program"><img src="logo/blender.svg" alt="Blender" width="42" height="42">Blender</li>
+      <li class="program"><img src="logo/maya.svg" alt="Maya" width="42" height="42">Maya</li>
+      <li class="program"><img src="logo/motionbuilder.svg" alt="MotionBuilder" width="42" height="42">MotionBuilder</li>
+    </ul>
+    <p>I'm still working things out, and most of it happens inside the arc of a movement: where the weight sits along it, what the silhouette is doing while it travels. That's where character animation either holds together or doesn't.</p>
+  </section>
+
+  <section class="galeria" id="animation-projects">
+    <div class="przyklejone">
+
+    <!-- ===== FILM: skopiuj cały ten blok, żeby dodać kolejny ===== -->
+    <div class="warstwa">
+      <div class="lewa">
+        <h2 class="nazwa">REUNION <span class="nazwa-dop">– LUMIS ENTERTAINMENT</span></h2>
+        <ul class="tech"><li>Fan Film</li><li class="data">Autodesk Maya</li></ul>
+      </div>
+      <div class="film">
+        <!-- film: https://www.youtube.com/watch?v=5bAEeWfuuTE – wstaw plik .mp4 w src -->
+        <div class="okno"><video src="video_REUNION.mp4" preload="metadata" data-youtube="5bAEeWfuuTE" autoplay muted loop playsinline></video></div>
+        <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
+          <p>I built the base pass another animator worked on top of. That changes how you animate: keys have to be readable by someone else, timing has to be committed rather than vague, and the scene has to be clean enough to hand over without a conversation attached to every shot.</p>
+          <svg class="strzalki-dol" viewBox="0 0 42 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9,1 21,7 33,1"/><polyline points="9,9 21,15 33,9"/><polyline points="9,17 21,23 33,17"/>
+          </svg>
+        </div>
+      </div>
+      <p class="opis">Fan film animated in the style of Arcane — stylized, graphic performance instead of realistic motion.</p>
+      <!-- SZCZEGÓŁY tego projektu (widoczne po kliknięciu zajawki) -->
+      <template class="szczegoly">
+        <div class="r-rozwoje">
+          <div>
+            <h3>Animating for someone else to continue</h3>
+            <p>My pass set the foundation: poses, timing and the structure of the shot. Work that another animator picks up has to be unambiguous — committed keys instead of soft approximations, a clean curve set, consistent naming. The goal was a handover where the next person adds polish instead of first reverse-engineering what I meant.</p>
+          </div>
+          <div>
+            <h3>Precision through feedback</h3>
+            <p>The frame-by-frame polish came out of a feedback loop rather than a single pass. Notes from the team sent shots back repeatedly, and each round narrowed in on smaller details — a contact frame, an overlap that fired too early, an eye line arriving a beat late. That rhythm of critique and revision is what taught me to look at my own work the way a reviewer does.</p>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- ===== FILM: skopiuj cały ten blok, żeby dodać kolejny ===== -->
+    <div class="warstwa">
+      <div class="lewa">
+        <h2 class="nazwa">FRESZAKI <span class="nazwa-dop">– KAUFLAND</span></h2>
+        <ul class="tech"><li>Television advertisement</li><li class="data">Autodesk Maya</li></ul>
+      </div>
+      <div class="film">
+        <!-- film: https://www.youtube.com/watch?v=ysJ-IEKDPAI – wstaw plik .mp4 w src -->
+        <div class="okno"><video src="ad_Kaufland.mp4" preload="metadata" data-youtube="ysJ-IEKDPAI" autoplay muted loop playsinline></video></div>
+        <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
+          <p>A kids' spot gives you no second look. Every pose had to read as a silhouette, every beat had to land before the cut. The animation was also the first stage of the pipeline, not a reference thrown over the wall — weight, overlap and eye direction had to be locked in by hand.</p>
+          <svg class="strzalki-dol" viewBox="0 0 42 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9,1 21,7 33,1"/><polyline points="9,9 21,15 33,9"/><polyline points="9,17 21,23 33,17"/>
+          </svg>
+        </div>
+      </div>
+      <p class="opis">TV campaign for kids. Playful, easy-to-read mascot animation — the pass that guided the AI-driven production.</p>
+      <!-- SZCZEGÓŁY tego projektu (widoczne po kliknięciu zajawki) -->
+      <template class="szczegoly">
+        <div class="r-rozwoje">
+          <div>
+            <h3>Reading in half a second</h3>
+            <p>A kids' spot gives you no second look. Every pose had to read as a silhouette, every beat had to land before the cut, and the acting had to stay broad without turning sloppy. Clear anticipation, strong key poses and exaggerated timing do that work — the eye finds the character, understands the action, and moves on.</p>
+          </div>
+          <div>
+            <h3>Hand-animated input for an AI pass</h3>
+            <p>The animation was the first stage of the pipeline, not a reference thrown over the wall. Weight, overlap, eye direction and the small intention beats before each action are exactly what a generative pass cannot invent on its own, so they had to be locked in by hand. The AI stage inherited that performance rather than authoring it — the motion you see in the final film is the animated pass underneath.</p>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- ===== FILM: skopiuj cały ten blok, żeby dodać kolejny ===== -->
+    <div class="warstwa">
+      <div class="lewa">
+        <h2 class="nazwa">Terror: Endless Night <span class="nazwa-dop">– UNSEEN SILENCE</span></h2>
+        <ul class="tech"><li>Cinematic trailer</li><li class="data">Autodesk Maya · Motion capture</li></ul>
+      </div>
+      <div class="film">
+        <!-- film: https://www.youtube.com/watch?v=j1lxcv1QJSQ – wstaw plik .mp4 w src -->
+        <div class="okno"><video src="trailer_Terror.mp4" preload="metadata" data-youtube="j1lxcv1QJSQ" autoplay muted loop playsinline></video></div>
+        <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
+          <p>Realistic human performance leaves no room for invention, so the work started before the keys: finding reference that actually matched the beat, and building it when no single clip did. Markerless capture turned that reference into something I could orbit and read in three dimensions instead of judging weight through someone else's camera.</p>
+          <svg class="strzalki-dol" viewBox="0 0 42 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9,1 21,7 33,1"/><polyline points="9,9 21,15 33,9"/><polyline points="9,17 21,23 33,17"/>
+          </svg>
+        </div>
+      </div>
+      <p class="opis">Animation on custom MetaHuman characters, focused on body acting and facial expression, with scene layout and camera work planned for the cut.</p>
+      <!-- SZCZEGÓŁY tego projektu (widoczne po kliknięciu zajawki) -->
+      <template class="szczegoly">
+        <div class="r-rozwoje">
+          <div>
+            <h3>Realistic humans leave no margin</h3>
+            <p>MetaHuman characters are read as people, so anything slightly off registers immediately — a weight shift that lands late, a face that holds an expression a beat too long. Body acting and facial work had to stay grounded rather than pushed, which meant animating to what a real body does instead of to what reads well.</p>
+          </div>
+          <div>
+            <h3>Building the reference, not finding it</h3>
+            <p>The reference a shot needs rarely exists as one clip. Footage of real people gets you close, but the framing hides the weight shift or the timing is wrong for the beat, so I assembled reference instead: mechanics from one source, timing from another. Markerless capture turned the result into motion I could orbit and read from the angle the shot actually needed.</p>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- ===== FILM: skopiuj cały ten blok, żeby dodać kolejny ===== -->
+    <div class="warstwa">
+      <div class="lewa">
+        <h2 class="nazwa">Just a Die <span class="nazwa-dop">– MEDWAY</span></h2>
+        <ul class="tech"><li>Game cutscenes</li><li class="data">Autodesk Maya</li></ul>
+      </div>
+      <div class="film">
+        <!-- film: https://www.youtube.com/watch?v=j1lxcv1QJSQ – wstaw plik .mp4 w src -->
+        <div class="okno"><video src="ep2_just_a_die.mp4" preload="metadata" data-youtube="j1lxcv1QJSQ" autoplay muted loop playsinline></video></div>
+        <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
+          <p>Created animation blockouts for key sequences, establishing timing and poses to guide final animation. Worked closely with a second animator to ensure consistency, quality and smooth integration of shots.</p>
+          <svg class="strzalki-dol" viewBox="0 0 42 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9,1 21,7 33,1"/><polyline points="9,9 21,15 33,9"/><polyline points="9,17 21,23 33,17"/>
+          </svg>
+        </div>
+      </div>
+      <p class="opis">Cutscenes included in the game. Contributed to additional shots after a previous successful collaboration.</p>
+      <!-- SZCZEGÓŁY tego projektu (widoczne po kliknięciu zajawki) -->
+      <template class="szczegoly">
+        <div class="r-rozwoje">
+          <div>
+            <h3>Blockouts for the key sequences</h3>
+            <p>I set timing and poses for the main beats, establishing the structure the final animation was built on. Blockout work decides most of a shot: once the beats land and the staging reads, polish becomes refinement rather than rescue.</p>
+          </div>
+          <div>
+            <h3>Two animators, one look</h3>
+            <p>Working alongside a second animator meant agreeing on how the characters move before splitting the shots — matching weight, pacing and the level of exaggeration so the sequences cut together without a visible seam between our passes.</p>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- ===== FILM: skopiuj cały ten blok, żeby dodać kolejny ===== -->
+    <div class="warstwa">
+      <div class="lewa">
+        <h2 class="nazwa">Just a Die <span class="nazwa-dop">– MEDWAY</span></h2>
+        <ul class="tech"><li>Game trailer</li><li class="data">Autodesk Maya</li></ul>
+      </div>
+      <div class="film">
+        <!-- film: https://www.youtube.com/watch?v=j1lxcv1QJSQ – wstaw plik .mp4 w src -->
+        <div class="okno"><video src="trailer_just_a_die.mp4" preload="metadata" data-youtube="j1lxcv1QJSQ" autoplay muted loop playsinline></video></div>
+        <div class="zajawka" role="button" tabindex="0" aria-label="Open project details">
+          <p>Focused on character performance and storytelling throughout the trailer. Refined shots based on external feedback from senior animators, improving overall animation quality and consistency. Applied personal creative input to enhance character performance and cinematic storytelling.</p>
+          <svg class="strzalki-dol" viewBox="0 0 42 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9,1 21,7 33,1"/><polyline points="9,9 21,15 33,9"/><polyline points="9,17 21,23 33,17"/>
+          </svg>
+        </div>
+      </div>
+      <p class="opis">Launch trailer for the game's Steam page — character performance carrying the cut, refined through rounds of senior review.</p>
+      <!-- SZCZEGÓŁY tego projektu (widoczne po kliknięciu zajawki) -->
+      <template class="szczegoly">
+        <div class="r-rozwoje">
+          <div>
+            <h3>Performance carries the trailer</h3>
+            <p>A trailer has to sell a game in under a minute, so every shot had to say something about the character rather than just move them through the frame. I pushed the acting choices — hesitation before an action, where the eyes go, what the body does between beats — to keep the cut telling a story.</p>
+          </div>
+          <div>
+            <h3>Notes from senior animators</h3>
+            <p>Shots went through review with more experienced animators and came back with corrections. Reworking them that way raised the consistency across the trailer and made clear which of my instincts held up under scrutiny and which were habits worth dropping.</p>
+          </div>
+        </div>
+      </template>
+    </div>
+
+      <div class="linia"></div>
+    </div>
+  </section>
+</div>
+</div>
+
+<section id="contact">
+  <div class="srodek">
+    <h2>Contact</h2>
+    <p>Coming soon.</p>
+  </div>
+</section>
+
+
+<!-- ROZWINIĘCIE PROJEKTU -->
+<div class="rozwiniecie" id="rozwiniecie" role="dialog" aria-modal="true" aria-labelledby="r-tytul" aria-hidden="true">
+  <div class="r-srodek">
+    <div class="r-gora">
+      <div class="r-lewa r-boki"><h2 id="r-tytul"></h2><ul class="r-tech" id="r-tech"></ul></div>
+      <div class="r-srodkowa">
+        <div class="r-film" id="r-film"><video muted loop playsinline></video></div>
+        <a class="r-link r-boki" id="r-link" target="_blank" rel="noopener" hidden></a>
+      </div>
+      <div class="r-prawa r-boki"><p id="r-opis"></p></div>
+    </div>
+    <div class="r-dol r-tresc" id="r-tresc"></div>
+  </div>
+</div>
+<button class="r-zamknij" id="r-zamknij" type="button" aria-label="Close">×</button>
+
+<footer>© 2026 Michał Laufer</footer>
+
+<script>
+  /* ===== GALERIE (dowolna liczba, dowolna liczba filmów) ===== */
+  const galerie = [...document.querySelectorAll(".galeria")];
+  galerie.forEach(g => g.style.setProperty("--n", g.querySelectorAll(".warstwa").length));   // 100vh na film
+  const kosciLinia = document.getElementById("kosciLinia");
+
+  function przewijanie() {
+    galerie.forEach(galeria => {
+      if (!galeria.offsetParent) return;                       // galeria w ukrytej zakładce
+      const warstwy = galeria.querySelectorAll(".warstwa");
+      const linia = galeria.querySelector(".linia");
+      const r = galeria.getBoundingClientRect();
+      const postep = Math.min(Math.max(-r.top / (r.height - innerHeight), 0), 1);
+      const krok = postep * Math.max(warstwy.length - 1, 0);
+      let pozycjaLinii = null;
+
+      /* przejście zajmuje część odcinka, reszta to postój na projekcie */
+      const PRZEJSCIE = 0.6;
+      warstwy.forEach((w, i) => {
+        if (i === 0) return;
+        const ile = Math.min(Math.max((krok - (i - 1)) / PRZEJSCIE, 0), 1);
+        w.style.clipPath = `inset(${(1 - ile) * 100}% 0 0 0)`;
+        if (ile > 0 && ile < 1) pozycjaLinii = (1 - ile) * 100;
+      });
+      linia.style.display = pozycjaLinii === null ? "none" : "block";
+      if (pozycjaLinii !== null) linia.style.top = pozycjaLinii + "%";
+
+      /* kości – tylko w galerii, która je ma (Humanoid, film 2) */
+      const scenaKosci = galeria.querySelector("#kosciScena");
+      if (scenaKosci && warstwy.length > 2) {
+        const scena = galeria.querySelector(".przyklejone").getBoundingClientRect();
+        const zaj2 = warstwy[1].querySelector(".zajawka").getBoundingClientRect();
+        const spoczynek = zaj2.bottom - scena.top + 70;
+        const ile3 = Math.min(Math.max((krok - 1) / PRZEJSCIE, 0), 1);
+        const kreska = (1 - ile3) * scena.height;
+        kosciLinia.style.top = Math.min(spoczynek, kreska) + "px";
+        scenaKosci.style.clipPath = warstwy[1].style.clipPath;
+      }
+    });
+  }
+  addEventListener("scroll", przewijanie);
+
+  const powitanie = document.querySelector(".powitanie .srodek");
+  addEventListener("resize", przewijanie);
+  przewijanie();
+
+
+
+  /* ===== ZAKŁADKI ===== */
+  const zakladki = document.querySelectorAll(".zakladka");
+  const krecha = document.getElementById("krecha");
+
+  function ustawKreche(tab) {
+    krecha.style.width = tab.offsetWidth + "px";
+    krecha.style.transform = `translateX(${tab.offsetLeft}px)`;
+  }
+  const widoki = document.getElementById("widoki");
+  const krechaPion = document.getElementById("krechaPion");
+  let wTrakcie = false;
+
+  function pokaz(tab) {
+    const stara = document.querySelector('.zakladka[aria-selected="true"]');
+    if (tab === stara || wTrakcie) return;
+    const lista = [...zakladki];
+    const wPrawo = lista.indexOf(tab) > lista.indexOf(stara);
+    const staryWidok = document.getElementById(stara.getAttribute("aria-controls"));
+    const nowyWidok = document.getElementById(tab.getAttribute("aria-controls"));
+
+    /* napisy barwią się w tę stronę, w którą jedzie kreska */
+    zakladki.forEach(t => t.style.setProperty("--kier", wPrawo ? "90deg" : "270deg"));
+    zakladki.forEach(t => t.setAttribute("aria-selected", t === tab));
+    ustawKreche(tab);
+    document.body.dataset.zakladka = tab.getAttribute("aria-controls");   // zmiana koloru strony
+
+    if (ruchOgraniczony) {            // bez animacji dla osób z ograniczeniem ruchu
+      staryWidok.hidden = true; nowyWidok.hidden = false; przewijanie(); return;
+    }
+
+    wTrakcie = true;
+    widoki.classList.add("zmiana");
+    staryWidok.classList.add("stary");
+    nowyWidok.classList.add("nowy");
+    nowyWidok.hidden = false;
+
+    const czas = 800, krzywa = "cubic-bezier(0, 0.55, 0.45, 1)";   // ease-out
+    const od = wPrawo ? "inset(0 0 0 100%)" : "inset(0 100% 0 0)";
+    nowyWidok.animate([{ clipPath: od }, { clipPath: "inset(0 0 0 0)" }], { duration: czas, easing: krzywa });
+    // stary widok znika dokładnie tam, gdzie pojawia się nowy (nic się nie nakłada)
+    const doStary = wPrawo ? "inset(0 100% 0 0)" : "inset(0 0 0 100%)";
+    staryWidok.animate([{ clipPath: "inset(0 0 0 0)" }, { clipPath: doStary }], { duration: czas, easing: krzywa, fill: "forwards" });
+    krechaPion.animate(
+      [{ left: wPrawo ? "100vw" : "0vw", opacity: 1 }, { left: wPrawo ? "0vw" : "100vw", opacity: 1 }],
+      { duration: czas, easing: krzywa }
+    ).onfinish = () => {
+      staryWidok.hidden = true;
+      staryWidok.getAnimations().forEach(a => a.cancel());
+      staryWidok.classList.remove("stary");
+      nowyWidok.classList.remove("nowy");
+      widoki.classList.remove("zmiana");
+      wTrakcie = false;
+      przewijanie();
+    };
+  }
+  zakladki.forEach(t => t.addEventListener("click", () => pokaz(t)));
+  addEventListener("resize", () => ustawKreche(document.querySelector('.zakladka[aria-selected="true"]')));
+  document.fonts.ready.then(() => ustawKreche(document.getElementById("tab-locomotion")));
+  ustawKreche(document.getElementById("tab-locomotion"));
+
+
+  /* ===== KRATKA z rybim okiem (fisheye) ===== */
+  const plotno = document.getElementById("kratka");
+  const ruchOgraniczony = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const ctx = plotno.getContext("2d");
+  const laufer = document.querySelector(".laufer");
+  const SILA = 0.12;              // siła rybiego oka: 0 = płasko, 0.3 = mocno
+  const LINIA = "rgba(230,230,236,0.054)";
+  const KROPKA = "rgba(230,230,236,0.315)";
+  const POLE = "rgba(230,230,236,0.072)";
+  let w, h, dpr;
+
+  function rozmiar() {
+    dpr = devicePixelRatio || 1;
+    w = innerWidth; h = innerHeight;
+    plotno.width = w * dpr; plotno.height = h * dpr;
+  }
+
+  // zniekształcenie: środek ekranu lekko powiększony, brzegi w miejscu
+  function oko(x, y) {
+    const cx = w / 2, cy = h / 2, R = Math.hypot(cx, cy);
+    const dx = (x - cx) / R, dy = (y - cy) / R;
+    const r2 = dx * dx + dy * dy;
+    const f = (1 + SILA) / (1 + SILA * r2);
+    return [cx + dx * f * R, cy + dy * f * R];
+  }
+
+  let przesuw = 0;                 // jak daleko kratka odpłynęła w prawo
+  const PREDKOSC = ruchOgraniczony ? 0 : 8;   // px na sekundę
+  let ostatni = performance.now();
+
+  function rysuj(teraz = performance.now()) {
+    przesuw += PREDKOSC * Math.min(teraz - ostatni, 100) / 1000;
+    ostatni = teraz;
+    const k = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--kratka"));
+    const sy = scrollY, H = document.documentElement.scrollHeight;
+    const KAT = 15 * Math.PI / 180;                  // kierunek lotu: 15° w górę od poziomu
+    const px = przesuw * Math.cos(KAT), py = -przesuw * Math.sin(KAT);
+    const mod = (v, m) => ((v % m) + m) % m;
+    const PRZEWIJANIE_KRATKI = 0.5;                   // 1 = jak strona, 0.5 = 2x wolniej
+    const pyS = py - sy * PRZEWIJANIE_KRATKI;
+    const ox = mod(px, k), oy = mod(pyS, k), ox4 = mod(px, k * 4), oy4 = mod(pyS, k * 4);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    // linie (kratka stoi w miejscu przy przewijaniu, płynie tylko w bok)
+    ctx.strokeStyle = LINIA; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = ox - k; x <= w + k; x += k) {
+      for (let y = -k; y <= h + k; y += 16) {
+        const [a, b] = oko(x, y);
+        y === -k ? ctx.moveTo(a, b) : ctx.lineTo(a, b);
+      }
+    }
+    for (let y = oy - k; y <= h + k; y += k) {
+      for (let x = -k; x <= w + k; x += 16) {
+        const [a, b] = oko(x, y);
+        x === -k ? ctx.moveTo(a, b) : ctx.lineTo(a, b);
+      }
+    }
+    ctx.stroke();
+
+    // kropki co 4 pola
+    ctx.fillStyle = KROPKA;
+    for (let x = ox4 - k * 4; x <= w; x += k * 4) {
+      for (let y = oy4 - k * 4; y <= h; y += k * 4) {
+        const [a, b] = oko(x, y);
+        ctx.beginPath(); ctx.arc(a, b, 1.5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    // zanikanie: kratka widoczna tylko u góry (0–12%) i na dole (88–100%) strony
+    // zanikanie przyczepione do samej kratki – nie zależy od wysokości strony ani zakładki
+    const gTop = -sy * PRZEWIJANIE_KRATKI;
+    const g = ctx.createLinearGradient(0, gTop, 0, gTop + GLEBOKOSC_GORA);
+    g.addColorStop(0, "#000"); g.addColorStop(0.44, "rgba(0,0,0,0.6)"); g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = "source-over";
+
+    // szachownica wokół "Laufer" – pola płyną razem z kratką
+    const b0 = laufer.getBoundingClientRect();         // szachownica zawsze za "Laufer"
+    const r = { left: b0.left, right: b0.right, top: b0.top + OBNIZENIE, bottom: b0.bottom + OBNIZENIE };
+    const L = r.left - 130, T = r.top - 70, Rr = r.right + 130, B = r.bottom + 70;   // zasięg szachownicy
+    if (B > 0 && T < h) {
+      const mx = (L + Rr) / 2, my = (T + B) / 2, rx = (Rr - L) / 2, ry = (B - T) / 2;
+      const i0 = Math.floor((L - px) / k), i1 = Math.ceil((Rr - px) / k);
+      const j0 = Math.floor((T - pyS) / k), j1 = Math.ceil((B - pyS) / k);
+      for (let i = i0; i < i1; i++) for (let j = j0; j < j1; j++) {
+        if (((i + j) % 2 + 2) % 2) continue;
+        const x = i * k + px, y = j * k + pyS;
+        const d = Math.hypot((x + k / 2 - mx) / rx, (y + k / 2 - my) / ry);
+        if (d >= 1) continue;
+        const sila = d < 0.25 ? 1 - d : d < 0.5 ? 0.75 - (d - 0.25) * 1.4 : d < 0.75 ? 0.4 - (d - 0.5) * 1.12 : 0.12 - (d - 0.75) * 0.48;
+        ctx.fillStyle = `rgba(230,230,236,${0.15 * Math.max(sila, 0)})`;   // intensywność szachownicy
+        const p = [oko(x, y), oko(x + k, y), oko(x + k, y + k), oko(x, y + k)];
+        ctx.beginPath(); ctx.moveTo(...p[0]); p.slice(1).forEach(q => ctx.lineTo(...q)); ctx.fill();
+      }
+    }
+    requestAnimationFrame(rysuj);   // rysuje się ciągle, bo kratka płynie
+  }
+
+  /* środek szachownicy obniżony, bo rybie oko wypycha pola w górę */
+  const OBNIZENIE = 26;
+  const GLEBOKOSC_GORA = 620;   // ile px od góry strony kratka zanika (jak w zakładce Humanoid)
+  addEventListener("resize", rozmiar);
+  rozmiar();
+  requestAnimationFrame(rysuj);
+
+
+  /* ===== ROZWINIĘCIE: film powiększa się na górę, strona stoi ===== */
+  const rozw = document.getElementById("rozwiniecie");
+  const rFilm = document.getElementById("r-film");
+  const rVideo = rFilm.querySelector("video");
+  const rTresc = document.getElementById("r-tresc");
+  const rZamknij = document.getElementById("r-zamknij");
+  let zrodlo = null, otwarte = false;
+  const CZAS = 650, KRZYWA = "cubic-bezier(0.22, 1, 0.36, 1)";
+
+  function zablokujStrone(tak) {
+    const pasek = innerWidth - document.documentElement.clientWidth;   // szerokość paska przewijania
+    document.body.classList.toggle("blokada", tak);                   // chowa pasek w rogu
+    document.documentElement.style.overflow = tak ? "hidden" : "";
+    document.documentElement.style.paddingRight = tak ? pasek + "px" : "";
+  }
+
+  function przejscieFilmu(odRect, doRect, odwrotnie) {
+    const dx = odRect.left - doRect.left, dy = odRect.top - doRect.top;
+    const sx = odRect.width / doRect.width, sy = odRect.height / doRect.height;
+    const start = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+    const klatki = [{ transform: start }, { transform: "none" }];
+    return rFilm.animate(odwrotnie ? klatki.reverse() : klatki, { duration: CZAS, easing: KRZYWA, fill: "both" });
+  }
+
+  /* ===== ABOUT ME: panel na całym ekranie ===== */
+  const omnie = document.getElementById("omnie");
+  const btnAbout = document.getElementById("btn-about");
+  function otworzOmnie() {
+    omnie.classList.add("otwarte");
+    omnie.setAttribute("aria-hidden", "false");
+    document.documentElement.style.overflow = "hidden";
+    document.getElementById("omnie-zamknij").focus({ preventScroll: true });
+  }
+  function zamknijOmnie() {
+    omnie.classList.remove("otwarte");
+    omnie.setAttribute("aria-hidden", "true");
+    document.documentElement.style.overflow = "";
+    btnAbout.focus({ preventScroll: true });
+  }
+  btnAbout.addEventListener("click", otworzOmnie);
+  document.getElementById("omnie-zamknij").addEventListener("click", zamknijOmnie);
+  omnie.addEventListener("click", e => { if (!e.target.closest(".omnie-srodek")) zamknijOmnie(); });
+  addEventListener("keydown", e => { if (e.key === "Escape" && omnie.classList.contains("otwarte")) zamknijOmnie(); });
+
+  /* ===== JĘZYK: na razie tylko zaznaczenie, bez tłumaczenia ===== */
+  document.querySelectorAll(".jez").forEach(b => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll(".jez").forEach(x => {
+        const ten = x === b;
+        x.classList.toggle("wybrany", ten);
+        x.setAttribute("aria-pressed", ten);
+      });
+      document.documentElement.lang = b.dataset.jezyk === "zh" ? "zh" : "en";
+      /* TODO: tutaj podmiana treści na chińską */
+    });
+  });
+
+  /* zdjęcie: dopóki nie ma pliku, zostaje przerywana ramka z nazwą pliku */
+  document.querySelectorAll(".portret img").forEach(img => {
+    const pokazBrak = () => img.closest(".portret").classList.add("brak");
+    img.addEventListener("error", pokazBrak, { once: true });
+    if (img.complete && !img.naturalWidth) pokazBrak();
+  });
+
+  /* miniatury YouTube w małych kwadratach galerii (projekty bez pliku .mp4) */
+  document.querySelectorAll(".okno video[data-youtube]").forEach(v => {
+    if (v.getAttribute("src")) return;                  // ma własny plik – nie ruszamy
+    const img = document.createElement("img");
+    img.className = "plakat";
+    img.loading = "lazy";
+    img.alt = "";
+    img.src = "https://i.ytimg.com/vi/" + v.dataset.youtube + "/maxresdefault.jpg";
+    img.addEventListener("error", () => {               // nie każdy film ma maxres
+      img.src = "https://i.ytimg.com/vi/" + v.dataset.youtube + "/hqdefault.jpg";
+    }, { once: true });
+    v.style.display = "none";                            // <video> zostaje (używa go rozwinięcie)
+    v.parentElement.prepend(img);
+  });
+
+  /* odtwarzacz YouTube wstawiany do .r-film, kiedy projekt nie ma pliku .mp4 */
+  let ramkaYT = null;
+  function wstawRamke(id) {
+    ramkaYT = document.createElement("iframe");
+    ramkaYT.src = "https://www.youtube-nocookie.com/embed/" + id +
+      "?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1";
+    ramkaYT.title = "Project video";
+    ramkaYT.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+    ramkaYT.allowFullscreen = true;
+    rFilm.appendChild(ramkaYT);
+  }
+  function usunRamke() {
+    if (ramkaYT) { ramkaYT.remove(); ramkaYT = null; }   // usunięcie = zatrzymanie odtwarzania
+  }
+
+  function otworz(warstwa) {
+    if (otwarte) return;
+    otwarte = true;
+    zrodlo = warstwa.querySelector(".okno");
+    const film = zrodlo.querySelector("video");
+    const plik = film ? film.getAttribute("src") : null;
+    const ytId = film ? film.dataset.youtube : null;
+    usunRamke();                                                                 // sprzątamy po poprzednim projekcie
+    if (plik) {
+      rVideo.hidden = false;
+      rVideo.src = plik; rVideo.currentTime = film.currentTime || 0; rVideo.play().catch(() => {});
+    } else if (ytId) {
+      rVideo.hidden = true; rVideo.removeAttribute("src"); rVideo.load();
+      wstawRamke(ytId);                                                          // zamiast <video> – odtwarzacz YouTube
+    } else {
+      rVideo.hidden = false; rVideo.removeAttribute("src"); rVideo.load();
+    }
+    document.getElementById("r-tytul").textContent = warstwa.querySelector(".nazwa").textContent;
+    document.getElementById("r-tech").replaceChildren(...[...warstwa.querySelectorAll(".tech li")].map(li => li.cloneNode(true)));
+    document.getElementById("r-opis").textContent = warstwa.querySelector(".opis").textContent;
+    const yt = film.dataset.youtube;                                             // link pod filmem, jeśli jest
+    const rLink = document.getElementById("r-link");
+    rLink.hidden = !yt;
+    if (yt) { rLink.href = "https://www.youtube.com/watch?v=" + yt; rLink.textContent = "Watch on YouTube ↗"; }
+    const szablon = warstwa.querySelector("template.szczegoly");                 // prywatne szczegóły projektu
+    rTresc.replaceChildren(szablon ? szablon.content.cloneNode(true) : "");
+
+    zablokujStrone(true);
+    rozw.scrollTop = 0;
+    rozw.classList.add("otwarte");
+    rozw.setAttribute("aria-hidden", "false");
+    rozw.animate([{ opacity: 0 }, { opacity: 1 }], { duration: CZAS * 0.5, fill: "forwards" });
+    przejscieFilmu(zrodlo.getBoundingClientRect(), rFilm.getBoundingClientRect(), false);
+    rTresc.animate([{ opacity: 0, transform: "translateY(24px)" }, { opacity: 1, transform: "none" }],
+      { duration: CZAS, delay: CZAS * 0.4, easing: KRZYWA, fill: "both" });
+    rozw.querySelectorAll(".r-boki").forEach(el => el.animate([{ opacity: 0 }, { opacity: 1 }],
+      { duration: CZAS * 0.6, delay: CZAS * 0.5, fill: "both" }));
+    rZamknij.focus({ preventScroll: true });
+  }
+
+  function zamknij() {
+    if (!otwarte) return;
+    rTresc.animate([{ opacity: 1 }, { opacity: 0 }], { duration: CZAS * 0.3, fill: "both" });
+    rozw.querySelectorAll(".r-boki").forEach(el => el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: CZAS * 0.3, fill: "both" }));
+    przejscieFilmu(zrodlo.getBoundingClientRect(), rFilm.getBoundingClientRect(), true);
+    const znik = rozw.animate([{ opacity: 1 }, { opacity: 0 }], { duration: CZAS * 0.4, delay: CZAS * 0.6, fill: "forwards" });
+    znik.onfinish = () => {
+      rozw.classList.remove("otwarte");
+      rozw.setAttribute("aria-hidden", "true");
+      rVideo.pause();
+      usunRamke();
+      zablokujStrone(false);
+      zrodlo.closest(".warstwa").querySelector(".zajawka").focus({ preventScroll: true });
+      otwarte = false;
+    };
+  }
+
+  document.querySelectorAll(".warstwa").forEach(warstwa => {
+    /* klik w dowolne miejsce projektu – film, tytuł, opis, zajawka */
+    warstwa.addEventListener("click", e => {
+      if (e.target.closest("a")) return;              // linki działają normalnie
+      otworz(warstwa);
+    });
+    const z = warstwa.querySelector(".zajawka");
+    if (z) z.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); otworz(warstwa); } });
+  });
+  rZamknij.addEventListener("click", zamknij);
+  /* klik w tło (boki, góra, dół) też zamyka – treść i film nie reagują */
+  rozw.addEventListener("click", e => {
+    if (!e.target.closest(".r-film, .r-lewa, .r-prawa, .r-link, .r-rozwoje, .r-siatka")) zamknij();
+  });
+  addEventListener("keydown", e => { if (e.key === "Escape") zamknij(); });
+
+  /* ===== KURSOR ===== */
+  const kursor = document.getElementById("kursor");
+  const joint = document.getElementById("joint");
+  let mx = innerWidth / 2, my = innerHeight / 2, x = mx, y = my, obrX = 0, obrY = 0;
+  let skala = 1;
+  const MIN_SKALA = 15 / 30;       // w szybkim ruchu: 15px
+
+  addEventListener("pointermove", (e) => { mx = e.clientX; my = e.clientY; });
+
+  function animuj() {
+    const vx = (mx - x) * 0.25, vy = (my - y) * 0.25;
+    x += vx; y += vy;
+    obrY += vx * 2 + 0.3;
+    obrX -= vy * 2;
+    const predkosc = Math.hypot(vx, vy);                       // px na klatkę
+    const cel = 1 - Math.min(predkosc / 25, 1) * (1 - MIN_SKALA);
+    skala += (cel - skala) * 0.15;                               // płynna zmiana rozmiaru
+    kursor.style.transform = `translate(${x}px, ${y}px) scale(${skala})`;
+    joint.style.transform = `rotateX(${obrX}deg) rotateY(${obrY}deg)`;
+    requestAnimationFrame(animuj);
+  }
+  animuj();
+</script>
+</body>
+</html>

@@ -681,7 +681,7 @@
       </div>
       <div class="film">
         <!-- wideo referencyjne: podmień src na swój plik -->
-        <div class="okno"><video src="ladder.mp4" autoplay muted loop playsinline></video></div>
+        <div class="okno"><video preload="none" src="ladder.mp4" muted loop playsinline></video></div>
       </div>
       <div class="prawa">
         <p class="opis">The G1 carries a ladder, unfolds it, climbs up, comes back down, folds it and carries it away — one continuous motion taken from a human recording.</p>
@@ -715,7 +715,7 @@
       </div>
       <div class="film">
         <!-- wideo referencyjne: podmień src na swój plik -->
-        <div class="okno"><video src="digging.mp4" autoplay muted loop playsinline></video></div>
+        <div class="okno"><video preload="none" src="digging.mp4" muted loop playsinline></video></div>
       </div>
       <div class="prawa">
         <p class="opis">The G1 digs with a physical pickaxe, held in both Dex3 hands, from a motion recorded off a person.</p>
@@ -749,7 +749,7 @@
       </div>
       <div class="film">
         <!-- wideo: na razie referencja kinematyczna, nie trening w fizyce -->
-        <div class="okno"><video src="cegly.mp4" autoplay muted loop playsinline></video></div>
+        <div class="okno"><video preload="none" src="cegly.mp4" muted loop playsinline></video></div>
         <button class="pytanie" type="button" aria-label="More info">
           <svg viewBox="0 0 24 42" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="1,9 7,21 1,33"/><polyline points="9,9 15,21 9,33"/><polyline points="17,9 23,21 17,33"/>
@@ -816,7 +816,7 @@
       </div>
       <div class="film">
         <!-- film: https://www.youtube.com/watch?v=5bAEeWfuuTE – wstaw plik .mp4 w src -->
-        <div class="okno"><video src="video_REUNION.mp4" preload="metadata" data-youtube="5bAEeWfuuTE" autoplay muted loop playsinline></video></div>
+        <div class="okno"><video preload="none" src="video_REUNION.mp4" data-youtube="5bAEeWfuuTE" muted loop playsinline></video></div>
       </div>
       <div class="prawa">
         <p class="opis">Fan film animated in the style of Arcane — stylized, graphic performance instead of realistic motion.</p>
@@ -847,7 +847,7 @@
       </div>
       <div class="film">
         <!-- film: https://www.youtube.com/watch?v=ysJ-IEKDPAI – wstaw plik .mp4 w src -->
-        <div class="okno"><video src="ad_Kaufland.mp4" preload="metadata" data-youtube="ysJ-IEKDPAI" autoplay muted loop playsinline></video></div>
+        <div class="okno"><video preload="none" src="ad_Kaufland.mp4" data-youtube="ysJ-IEKDPAI" muted loop playsinline></video></div>
       </div>
       <div class="prawa">
         <p class="opis">TV campaign for kids. Playful, easy-to-read mascot animation — the pass that guided the AI-driven production.</p>
@@ -878,7 +878,7 @@
       </div>
       <div class="film">
         <!-- film: https://www.youtube.com/watch?v=Uk4t1wPYEnk -->
-        <div class="okno"><video src="trailer_Terror.mp4" preload="metadata" data-youtube="Uk4t1wPYEnk" autoplay muted loop playsinline></video></div>
+        <div class="okno"><video preload="none" src="trailer_Terror.mp4" data-youtube="Uk4t1wPYEnk" muted loop playsinline></video></div>
       </div>
       <!-- LINKI pod filmem w rozwinięciu (kolejność jak tutaj) -->
       <template class="linki">
@@ -914,7 +914,7 @@
       </div>
       <div class="film">
         <!-- film: bez linków zewnętrznych – tylko plik .mp4 -->
-        <div class="okno"><video src="ep2_just_a_die.mp4" preload="metadata" autoplay muted loop playsinline></video></div>
+        <div class="okno"><video preload="none" src="ep2_just_a_die.mp4" muted loop playsinline></video></div>
       </div>
       <div class="prawa">
         <p class="opis">Cutscenes included in the game. Contributed to additional shots after a previous successful collaboration.</p>
@@ -945,7 +945,7 @@
       </div>
       <div class="film">
         <!-- film: bez linków zewnętrznych – tylko plik .mp4 -->
-        <div class="okno"><video src="trailer_just_a_die.mp4" preload="metadata" autoplay muted loop playsinline></video></div>
+        <div class="okno"><video preload="none" src="trailer_just_a_die.mp4" muted loop playsinline></video></div>
       </div>
       <div class="prawa">
         <p class="opis">Launch trailer for the game's Steam page — character performance carrying the cut, refined through rounds of senior review.</p>
@@ -1002,13 +1002,33 @@
 
 <script>
   /* ===== GALERIE (dowolna liczba, dowolna liczba filmów) ===== */
+  let otwarte = false;                      // czy otwarty jest projekt (rozwinięcie)
   const galerie = [...document.querySelectorAll(".galeria")];
   galerie.forEach(g => g.style.setProperty("--n", g.querySelectorAll(".warstwa").length));   // 100vh na film
   const kosciLinia = document.getElementById("kosciLinia");
 
+  /* ===== FILMY: gra tylko ten projekt, który jest na wierzchu =====
+     Wszystkie filmy mają preload="none", więc plik zaczyna się pobierać dopiero
+     przy pierwszym play(). Inaczej przeglądarka ciągnie i dekoduje ~70 MB naraz
+     i obraz się zacina. */
+  function filmy(galeria, grajace) {
+    const warstwy = galeria.querySelectorAll(".warstwa");
+    warstwy.forEach((w, i) => {
+      const v = w.querySelector(".okno video");
+      if (!v) return;
+      if (grajace.has(i)) { if (v.paused) v.play().catch(() => {}); }
+      else if (!v.paused) v.pause();
+    });
+    if (!grajace.size) return;
+    /* następny projekt dociąga samą pierwszą klatkę, żeby nie wjeżdżał pustym oknem */
+    const nast = warstwy[Math.max(...grajace) + 1];
+    const v = nast && nast.querySelector(".okno video");
+    if (v && v.preload === "none") { v.preload = "metadata"; v.load(); }
+  }
+
   function przewijanie() {
     galerie.forEach(galeria => {
-      if (!galeria.offsetParent) return;                       // galeria w ukrytej zakładce
+      if (!galeria.offsetParent) { filmy(galeria, new Set()); return; }   // galeria w ukrytej zakładce
       const warstwy = galeria.querySelectorAll(".warstwa");
       const linia = galeria.querySelector(".linia");
       const r = galeria.getBoundingClientRect();
@@ -1016,7 +1036,7 @@
       const wysEkranu = galeria.querySelector(".przyklejone").offsetHeight || innerHeight;
       const postep = Math.min(Math.max(-r.top / (r.height - wysEkranu), 0), 1);
       const krok = postep * Math.max(warstwy.length - 1, 0);
-      let pozycjaLinii = null;
+      let pozycjaLinii = null, wierzch = 0;
 
       /* przejście zajmuje część odcinka, reszta to postój na projekcie */
       const PRZEJSCIE = 0.6;
@@ -1025,9 +1045,15 @@
         const ile = Math.min(Math.max((krok - (i - 1)) / PRZEJSCIE, 0), 1);
         w.style.clipPath = `inset(${(1 - ile) * 100}% 0 0 0)`;
         if (ile > 0 && ile < 1) pozycjaLinii = (1 - ile) * 100;
+        if (ile >= 1) wierzch = i;
       });
       linia.style.display = pozycjaLinii === null ? "none" : "block";
       if (pozycjaLinii !== null) linia.style.top = pozycjaLinii + "%";
+
+      /* gra warstwa na wierzchu, a w trakcie przejścia także ta wjeżdżająca */
+      const grajace = new Set([wierzch]);
+      if (pozycjaLinii !== null) grajace.add(wierzch + 1);
+      if (!otwarte) filmy(galeria, grajace);
 
       /* kości – tylko w galerii, która je ma (Humanoid, film 2) */
       const scenaKosci = galeria.querySelector("#kosciScena");
@@ -1042,7 +1068,12 @@
       }
     });
   }
-  addEventListener("scroll", przewijanie);
+  let czekaKlatka = false;                  // jedno przeliczenie na klatkę, nie na każde zdarzenie
+  addEventListener("scroll", () => {
+    if (czekaKlatka) return;
+    czekaKlatka = true;
+    requestAnimationFrame(() => { czekaKlatka = false; przewijanie(); });
+  }, { passive: true });
 
   const powitanie = document.querySelector(".powitanie .srodek");
   addEventListener("resize", przewijanie);
@@ -1226,7 +1257,7 @@
   const rVideo = rFilm.querySelector("video");
   const rTresc = document.getElementById("r-tresc");
   const rZamknij = document.getElementById("r-zamknij");
-  let zrodlo = null, otwarte = false;
+  let zrodlo = null;
   const CZAS = 650, KRZYWA = "cubic-bezier(0.22, 1, 0.36, 1)";
 
   function zablokujStrone(tak) {
@@ -1367,6 +1398,7 @@
     const szablon = warstwa.querySelector("template.szczegoly");                 // prywatne szczegóły projektu
     rTresc.replaceChildren(szablon ? szablon.content.cloneNode(true) : "");
 
+    film && film.pause();                    // nie dekodujemy tego samego filmu dwa razy
     zablokujStrone(true);
     rozw.scrollTop = 0;
     rozw.classList.add("otwarte");
@@ -1394,6 +1426,7 @@
       zablokujStrone(false);
       zrodlo.closest(".warstwa").querySelector(".zajawka").focus({ preventScroll: true });
       otwarte = false;
+      przewijanie();                           // film w galerii rusza z powrotem
     };
   }
 
